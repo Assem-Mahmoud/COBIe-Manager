@@ -234,5 +234,11 @@ public class ApsBridgeProcessService : IDisposable
         _idleCheckTimer?.Dispose();
         StopBridge();
         _startLock.Dispose();
+
+        // Dispose the bridge client if it implements IDisposable
+        if (_bridgeClient is IDisposable disposableClient)
+        {
+            disposableClient.Dispose();
+        }
     }
 }

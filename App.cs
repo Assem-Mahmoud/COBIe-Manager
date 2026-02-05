@@ -55,7 +55,7 @@ namespace COBIeManager
 
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // TODO: Add your feature buttons here
+                // Add your feature buttons using the pattern below
                 // Example:
                 // PushButtonData buttonData = new PushButtonData(
                 //     "MyFeatureBtn",
@@ -107,8 +107,6 @@ namespace COBIeManager
 
                 logger.Info("Registering IUnitConversionService singleton...");
                 services.RegisterSingleton<IUnitConversionService>(new UnitConversionService(logger));
-
-          
 
                 logger.Info("Registering IWarningSuppressionService singleton...");
                 services.RegisterSingleton<IWarningSuppressionService>(new WarningSuppressionService(logger));

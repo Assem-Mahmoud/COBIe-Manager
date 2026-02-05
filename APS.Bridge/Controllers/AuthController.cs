@@ -106,6 +106,9 @@ public class AuthController : ControllerBase
                 tokenResponse.refresh_token ?? string.Empty,
                 tokenResponse.expires_in);
 
+            // Store account ID for later retrieval
+            _authStatus.AccountId = tokenResponse.AccountId;
+
             // Save tokens to storage
             _tokenStorage.SaveToken(
                 tokenResponse.access_token ?? string.Empty,
@@ -158,7 +161,7 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             isAuthenticated = !isExpired,
-            accountId = (string?)null, // TODO: Get from stored token
+            accountId = _authStatus.AccountId,
             userId = (string?)null,
             expiresAt = token.expiresAt
         });

@@ -25,4 +25,9 @@ public class BridgeAuthStatus
     /// </summary>
     public bool IsLoginTimedOut => IsLoginInProgress &&
         DateTime.UtcNow > LoginStartedAt.AddSeconds(LoginTimeoutSeconds);
+
+    /// <summary>
+    /// The authenticated account ID from APS
+    /// </summary>
+    public string? AccountId { get; set; }
 }
