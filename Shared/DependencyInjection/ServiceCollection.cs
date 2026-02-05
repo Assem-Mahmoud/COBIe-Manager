@@ -128,7 +128,8 @@ namespace COBIeManager.Shared.DependencyInjection
         {
             if (!_services.TryGetValue(serviceType, out var descriptor))
             {
-                throw new InvalidOperationException($"Service of type {serviceType.Name} is not registered.");
+                // Return null for unregistered services (standard IServiceProvider pattern)
+                return null!;
             }
 
             // Return singleton if already created
@@ -151,7 +152,7 @@ namespace COBIeManager.Shared.DependencyInjection
                 }
                 else
                 {
-                    instance = Activator.CreateInstance(descriptor.ImplementationType);
+                    instance = Activator.CreateInstance(descriptor.ImplementationType)!;
                 }
 
                 _singletons[serviceType] = instance;
@@ -169,7 +170,7 @@ namespace COBIeManager.Shared.DependencyInjection
                 return descriptor.Factory.DynamicInvoke(this);
             }
 
-            return Activator.CreateInstance(descriptor.ImplementationType);
+            return Activator.CreateInstance(descriptor.ImplementationType)!;
         }
     }
 }

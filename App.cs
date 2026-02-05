@@ -55,7 +55,7 @@ namespace COBIeManager
 
                 string assemblyPath = Assembly.GetExecutingAssembly().Location;
 
-                // TODO: Add your feature buttons here
+                // Add your feature buttons using the pattern below
                 // Example:
                 // PushButtonData buttonData = new PushButtonData(
                 //     "MyFeatureBtn",
@@ -65,6 +65,16 @@ namespace COBIeManager
                 //
                 // PushButton button = panel.AddItem(buttonData) as PushButton;
                 // button.ToolTip = "Description of my feature";
+
+                // COBie Parameters button
+                PushButtonData cobieParamsButtonData = new PushButtonData(
+                    "CobieParametersBtn",
+                    "COBie Parameters",
+                    assemblyPath,
+                    "COBIeManager.Features.CobieParameters.Commands.CobieParametersCommand");
+
+                PushButton cobieParamsButton = panel.AddItem(cobieParamsButtonData) as PushButton;
+                cobieParamsButton.ToolTip = "Manage COBie parameters from Autodesk Platform Services";
 
                 return Result.Succeeded;
             }
@@ -98,10 +108,22 @@ namespace COBIeManager
                 logger.Info("Registering IUnitConversionService singleton...");
                 services.RegisterSingleton<IUnitConversionService>(new UnitConversionService(logger));
 
-          
-
                 logger.Info("Registering IWarningSuppressionService singleton...");
                 services.RegisterSingleton<IWarningSuppressionService>(new WarningSuppressionService(logger));
+
+                // COBie Parameters services
+                logger.Info("Registering IApsBridgeClient singleton...");
+                services.AddSingleton<Shared.Interfaces.IApsBridgeClient>(sp => new Shared.APS.ApsBridgeClient());
+
+                logger.Info("Registering ApsBridgeProcessService singleton...");
+                services.AddSingleton<Shared.Services.ApsBridgeProcessService>(sp =>
+                {
+                    var bridgeClient = sp.GetService<Shared.Interfaces.IApsBridgeClient>();
+                    return new Shared.Services.ApsBridgeProcessService(bridgeClient);
+                });
+
+                logger.Info("Registering ParameterCacheService singleton...");
+                services.RegisterSingleton(new Shared.Services.ParameterCacheService());
 
 
                 logger.Info("Building service provider...");

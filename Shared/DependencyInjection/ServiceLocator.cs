@@ -28,6 +28,26 @@ namespace COBIeManager.Shared.DependencyInjection
                     "ServiceLocator has not been initialized. Call ServiceLocator.Initialize() first.");
             }
 
+            var service = _serviceProvider.GetService<T>();
+            if (service == null)
+            {
+                throw new InvalidOperationException(
+                    $"Service of type {typeof(T).Name} is not registered.");
+            }
+
+            return service;
+        }
+
+        /// <summary>
+        /// Tries to get a service of the specified type. Returns null if not found.
+        /// </summary>
+        public static T? TryGetService<T>() where T : class
+        {
+            if (_serviceProvider == null)
+            {
+                return null;
+            }
+
             return _serviceProvider.GetService<T>();
         }
 

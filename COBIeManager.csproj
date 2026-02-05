@@ -79,6 +79,13 @@
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
     <PackageReference Include="Nuke.Common" Version="9.0.4" />
     <PackageReference Include="Revit.Async" Version="2.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- System.Net.Http reference for .NET Framework 4.8 -->
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
 	<!-- Revit API References from local lib folder -->
@@ -158,10 +165,22 @@
     </None>
   </ItemGroup>
 
+  <!-- XAML Resources -->
+  <ItemGroup>
+    <Resource Include="Styles.xaml" />
+  </ItemGroup>
+
   <ItemGroup>
     <Folder Include="Features\ExampleFeature\Models\" />
     <Folder Include="Features\ExampleFeature\ViewModels\" />
     <Folder Include="Features\ExampleFeature\Views\" />
+  </ItemGroup>
+
+  <!-- Exclude APS.Bridge - it's a separate ASP.NET Core project -->
+  <ItemGroup>
+    <Compile Remove="APS.Bridge\**\*.cs" />
+    <EmbeddedResource Remove="APS.Bridge\**\*" />
+    <None Remove="APS.Bridge\**\*" />
   </ItemGroup>
 
   <!-- Post-build event to copy DLL to Revit addins folder for easy debugging -->
