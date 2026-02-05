@@ -1,0 +1,90 @@
+<UserControl
+    x:Class="RevitCadConverter.Shared.Controls.LoadingOverlay"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:RevitCadConverter.Shared.Converters"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/RevitCadConverter;component/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+            <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--  Overlay backdrop  -->
+    <Grid
+        Background="#CC000000"
+        Panel.ZIndex="999"
+        Visibility="{Binding IsVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <!--  Centered loading card  -->
+        <Border
+            Width="350"
+            Padding="30"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="{DynamicResource MaterialDesignPaper}"
+            CornerRadius="12"
+            Effect="{StaticResource MaterialDesignShadowDepth5}">
+
+            <StackPanel HorizontalAlignment="Center">
+
+                <!--  Continuous Spinner (Always spinning)  -->
+                <ProgressBar
+                    Width="60"
+                    Height="60"
+                    Margin="0,0,0,20"
+                    Foreground="{DynamicResource PrimaryHueMidBrush}"
+                    IsIndeterminate="True"
+                    Style="{StaticResource MaterialDesignCircularProgressBar}"
+                    Value="0" />
+
+                <!--  Main Message  -->
+                <TextBlock
+                    Margin="0,0,0,8"
+                    HorizontalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Text="{Binding Message}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+
+                <!--  Sub Message  -->
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{DynamicResource MaterialDesignBodyLight}"
+                    Text="{Binding SubMessage}"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap"
+                    Visibility="{Binding SubMessage, Converter={StaticResource StringToVisibilityConverter}}" />
+
+                <!--  Progress Bar (Linear)  -->
+                <ProgressBar
+                    Margin="0,15,0,0"
+                    Maximum="{Binding ProgressMaximum}"
+                    Style="{StaticResource MaterialDesignLinearProgressBar}"
+                    Value="{Binding ProgressValue}"
+                    Visibility="{Binding ShowProgress, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                <!--  Progress Percentage  -->
+                <TextBlock
+                    Margin="0,5,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="11"
+                    FontWeight="Medium"
+                    Foreground="{DynamicResource PrimaryHueMidBrush}"
+                    Visibility="{Binding ShowProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Run Text="{Binding ProgressValue, Mode=OneWay, StringFormat={}{0:F0}}" />
+                    <Run Text="%" />
+                </TextBlock>
+
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

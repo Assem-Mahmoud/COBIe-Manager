@@ -1,0 +1,195 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Configurations>Debug2023;Release2023;Debug2024;Release2024;Debug2025;Release2025;Debug2026;Release2026</Configurations>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <RootNamespace>COBIeManager</RootNamespace>
+    <AssemblyName>COBIeManager</AssemblyName>
+  </PropertyGroup>
+
+	<!-- Revit API DLLs are stored in lib folder - run setup-revit-libs.ps1 to populate -->
+	<PropertyGroup>
+		<RevitVersion Condition="'$(Configuration)' == 'Debug2023'">2023</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Debug2024'">2024</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Debug2025'">2025</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Debug2026'">2026</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Release2023'">2023</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Release2024'">2024</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Release2025'">2025</RevitVersion>
+		<RevitVersion Condition="'$(Configuration)' == 'Release2026'">2026</RevitVersion>
+	</PropertyGroup>
+
+	<!-- Define conditional compilation symbols for version-specific code -->
+	<PropertyGroup>
+		<DefineConstants Condition="'$(Configuration)' == 'Debug2023'">DEBUG;TRACE;REVIT_2023</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Debug2024'">DEBUG;TRACE;REVIT_2024</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Debug2025'">DEBUG;TRACE;REVIT_2025</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Debug2026'">DEBUG;TRACE;REVIT_2026</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Release2023'">TRACE;REVIT_2023</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Release2024'">TRACE;REVIT_2024</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Release2025'">TRACE;REVIT_2025</DefineConstants>
+		<DefineConstants Condition="'$(Configuration)' == 'Release2026'">TRACE;REVIT_2026</DefineConstants>
+	</PropertyGroup>
+
+	<!-- Debug startup settings are now in RevitCadConverter.csproj.user (gitignored, user-specific) -->
+
+  <ItemGroup>
+    <None Remove="Icon_16.png" />
+    <None Remove="nul" />
+    <None Remove="Shared\Resources\Cad_Revit_16.PNG" />
+    <None Remove="Shared\Resources\Cad_Revit_32.PNG" />
+    <None Remove="Shared\Resources\Finishes_16.PNG" />
+    <None Remove="Shared\Resources\Finishes_32.PNG" />
+    <None Remove="Shared\Resources\Icon_16.png" />
+    <None Remove="Shared\Resources\Icon_24.png" />
+    <None Remove="Shared\Resources\Icon_32.png" />
+    <None Remove="Shared\Resources\Rooms_16.PNG" />
+    <None Remove="Shared\Resources\Rooms_32.PNG" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Shared\Resources\Cad_Revit_16.PNG" />
+    <EmbeddedResource Include="Shared\Resources\Cad_Revit_32.PNG" />
+    <EmbeddedResource Include="Shared\Resources\Finishes_16.PNG" />
+    <EmbeddedResource Include="Shared\Resources\Finishes_32.PNG" />
+    <EmbeddedResource Include="Shared\Resources\Icon_16.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Shared\Resources\Icon_24.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Shared\Resources\Icon_32.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Shared\Resources\Rooms_16.PNG" />
+    <EmbeddedResource Include="Shared\Resources\Rooms_32.PNG" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+    <PackageReference Include="MaterialDesignColors" Version="5.2.1" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
+    <PackageReference Include="Nuke.Common" Version="9.0.4" />
+    <PackageReference Include="Revit.Async" Version="2.1.1" />
+  </ItemGroup>
+
+	<!-- Revit API References from local lib folder -->
+	<!-- Revit 2023 -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug2023' Or '$(Configuration)' == 'Release2023'">
+		<Reference Include="RevitAPI">
+			<HintPath>lib\Revit2023\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI">
+			<HintPath>lib\Revit2023\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="UIFramework">
+			<HintPath>lib\Revit2023\UIFramework.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+
+	<!-- Revit 2024 -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug2024' Or '$(Configuration)' == 'Release2024'">
+		<Reference Include="RevitAPI">
+			<HintPath>lib\Revit2024\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI">
+			<HintPath>lib\Revit2024\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="UIFramework">
+			<HintPath>lib\Revit2024\UIFramework.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+
+	<!-- Revit 2025 -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug2025' Or '$(Configuration)' == 'Release2025'">
+		<Reference Include="RevitAPI">
+			<HintPath>lib\Revit2025\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI">
+			<HintPath>lib\Revit2025\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="UIFramework">
+			<HintPath>lib\Revit2025\UIFramework.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+
+	<!-- Revit 2026 -->
+	<ItemGroup Condition="'$(Configuration)' == 'Debug2026' Or '$(Configuration)' == 'Release2026'">
+		<Reference Include="RevitAPI">
+			<HintPath>lib\Revit2026\RevitAPI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="RevitAPIUI">
+			<HintPath>lib\Revit2026\RevitAPIUI.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+		<Reference Include="UIFramework">
+			<HintPath>lib\Revit2026\UIFramework.dll</HintPath>
+			<Private>False</Private>
+		</Reference>
+	</ItemGroup>
+
+	<!-- For Revit 2025/2026: Disable resolving assembly dependencies to avoid .NET 8 conflicts -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug2025' Or '$(Configuration)' == 'Release2025' Or '$(Configuration)' == 'Debug2026' Or '$(Configuration)' == 'Release2026'">
+		<ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
+		<AutoUnifyAssemblyReferences>false</AutoUnifyAssemblyReferences>
+	</PropertyGroup>
+
+  <ItemGroup>
+    <None Update="COBIeManager.addin">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\ExampleFeature\Models\" />
+    <Folder Include="Features\ExampleFeature\ViewModels\" />
+    <Folder Include="Features\ExampleFeature\Views\" />
+  </ItemGroup>
+
+  <!-- Post-build event to copy DLL to Revit addins folder for easy debugging -->
+  <Target Name="PostBuildCopyToAddins" AfterTargets="Build">
+    <!-- Define the addins folder paths based on current Revit version -->
+    <PropertyGroup>
+      <RevitAddinsRootFolder>$(APPDATA)\Autodesk\Revit\Addins\$(RevitVersion)</RevitAddinsRootFolder>
+      <CobieManagerFolder>$(RevitAddinsRootFolder)\COBIeManager</CobieManagerFolder>
+    </PropertyGroup>
+
+    <!-- Create the COBIeManager directory if it doesn't exist -->
+    <MakeDir Directories="$(CobieManagerFolder)" />
+
+    <!-- Copy DLL and dependencies to COBIeManager folder -->
+    <Copy SourceFiles="$(OutDir)COBIeManager.dll" DestinationFolder="$(CobieManagerFolder)" SkipUnchangedFiles="false" />
+
+    <!-- Copy related DLLs if they exist in output directory -->
+    <!-- Exclude Revit API DLLs as they should be loaded from Revit's installation -->
+    <ItemGroup>
+      <DllFiles Include="$(OutDir)*.dll" Exclude="$(OutDir)COBIeManager.dll;$(OutDir)RevitAPI.dll;$(OutDir)RevitAPIUI.dll;$(OutDir)UIFramework.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DllFiles)" DestinationFolder="$(CobieManagerFolder)" SkipUnchangedFiles="false" />
+
+    <!-- Copy manifest file to root Revit addins folder (NOT inside COBIeManager) -->
+    <Copy SourceFiles="$(ProjectDir)COBIeManager.addin" DestinationFolder="$(RevitAddinsRootFolder)" SkipUnchangedFiles="false" />
+
+    <Message Text="✓ Copied COBIeManager.dll to $(CobieManagerFolder)" Importance="high" />
+    <Message Text="✓ Copied COBIeManager.addin to $(RevitAddinsRootFolder)" Importance="high" />
+  </Target>
+
+</Project>

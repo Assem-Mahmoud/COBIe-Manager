@@ -1,0 +1,285 @@
+﻿<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialdesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+
+    <ResourceDictionary.MergedDictionaries>
+
+        <!--  Color palettes  -->
+        <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesignTheme.Light.xaml" />
+
+        <!--  Custom color - AMANA Company Orange Theme  -->
+        <materialdesign:CustomColorTheme
+            BaseTheme="Light"
+            PrimaryColor="#E65100"
+            SecondaryColor="#37474F" />
+
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--  2. Custom Material Theme  -->
+    <materialdesign:CustomColorTheme
+        x:Key="CustomTheme"
+        BaseTheme="Light"
+        PrimaryColor="#E65100"
+        SecondaryColor="#37474F" />
+
+    <!-- Color Tokens - AMANA Orange Branding -->
+    <Color x:Key="PrimaryColor">#E65100</Color>
+    <!-- Material Orange 900 - Company Brand (Darker) -->
+    <Color x:Key="PrimaryColorLight">#F57C00</Color>
+    <!-- Material Orange 700 -->
+    <Color x:Key="PrimaryColorDark">#BF360C</Color>
+    <!-- Material Deep Orange 900 (Darkest) -->
+    <Color x:Key="SecondaryColor">#37474F</Color>
+    <!-- Slate Gray -->
+    <Color x:Key="AppBackground">#F1F1F1</Color>
+    <!-- Light Gray BG -->
+    <Color x:Key="Surface">#FFFFFF</Color>
+    <!-- White panels -->
+    <Color x:Key="PrimaryText">#212121</Color>
+    <!-- Dark text -->
+    <Color x:Key="SecondaryText">#616161</Color>
+    <!-- Subtext -->
+    <Color x:Key="SuccessGreen">#4CAF50</Color>
+    <!-- Success states -->
+    <Color x:Key="WarningAmber">#FFA726</Color>
+    <!-- Warning states -->
+    <Color x:Key="ErrorRed">#E53935</Color>
+    <!-- Error states -->
+    <Color x:Key="InfoBlue">#42A5F5</Color>
+    <!-- Information -->
+
+
+    <!--  Shared custom brushes  -->
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F1F1F1" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="PrimaryTextBrush" Color="#212121" />
+    <SolidColorBrush x:Key="SecondaryTextBrush" Color="#616161" />
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
+    <SolidColorBrush x:Key="PrimaryLightBrush" Color="{StaticResource PrimaryColorLight}" />
+    <SolidColorBrush x:Key="PrimaryDarkBrush" Color="{StaticResource PrimaryColorDark}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessGreen}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningAmber}" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorRed}" />
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoBlue}" />
+
+    <!-- Gradient Brushes -->
+    <LinearGradientBrush x:Key="PrimaryGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#1C1C1C" Offset="0"/>
+        <GradientStop Color="#000000" Offset="1"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="SurfaceGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFFFFFFF" Offset="0"/>
+        <GradientStop Color="#FFF9F9F9" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- UNIFIED COMPONENT STYLES                                        -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <!-- Modern Card Style -->
+    <Style x:Key="ModernCard" TargetType="materialdesign:Card">
+        <Setter Property="Padding" Value="20"/>
+        <Setter Property="Margin" Value="0,0,0,16"/>
+        <Setter Property="materialdesign:ElevationAssist.Elevation" Value="Dp2"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="materialdesign:ElevationAssist.Elevation" Value="Dp4"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Stat Card Style (for displaying statistics) -->
+    <Style x:Key="StatCard" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceGradientBrush}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16,12"/>
+        <Setter Property="Margin" Value="0,0,8,0"/>
+        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect ShadowDepth="2" BlurRadius="6" Opacity="0.1" Color="#000000"/>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Section Header Style -->
+    <Style x:Key="SectionHeader" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
+
+    <!-- Section Subheader Style -->
+    <Style x:Key="SectionSubheader" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+
+    <!-- Stat Value Style -->
+    <Style x:Key="StatValue" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <!-- Stat Label Style -->
+    <Style x:Key="StatLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Regular"/>
+        <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- Status Badge Styles -->
+    <Style x:Key="StatusBadge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="12,4"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="SuccessBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#E8F5E9"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="WarningBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#FFF3E0"/>
+        <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="InfoBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#E3F2FD"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InfoBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style x:Key="ErrorBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+        <Setter Property="Background" Value="#FFEBEE"/>
+        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <!-- Badge Text Styles -->
+    <Style x:Key="SuccessBadgeText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="WarningBadgeText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="InfoBadgeText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource InfoBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <Style x:Key="ErrorBadgeText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- Info Card Style -->
+    <Style x:Key="InfoCard" TargetType="Border">
+        <Setter Property="Background" Value="#E3F2FD"/>
+        <Setter Property="BorderBrush" Value="{StaticResource InfoBrush}"/>
+        <Setter Property="BorderThickness" Value="1,1,1,3"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="Margin" Value="0,0,0,16"/>
+    </Style>
+
+    <!-- Warning Card Style -->
+    <Style x:Key="WarningCard" TargetType="Border">
+        <Setter Property="Background" Value="#FFF3E0"/>
+        <Setter Property="BorderBrush" Value="{StaticResource WarningBrush}"/>
+        <Setter Property="BorderThickness" Value="1,1,1,3"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="Margin" Value="0,0,0,16"/>
+    </Style>
+
+    <!-- Icon Button Style -->
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Padding" Value="8"/>
+        <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Primary Action Button -->
+    <Style x:Key="PrimaryActionButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Padding" Value="20,5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="materialdesign:ElevationAssist.Elevation" Value="Dp2"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimaryDarkBrush}"/>
+                <Setter Property="materialdesign:ElevationAssist.Elevation" Value="Dp4"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Secondary Action Button -->
+    <Style x:Key="SecondaryActionButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignOutlinedButton}">
+        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="Padding" Value="24,8"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#FFF5E6"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- VALIDATION STYLES                                               -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+
+    <Style x:Key="ValidationStyleTxt" TargetType="TextBox" BasedOn="{StaticResource MaterialDesignFilledTextBox}">
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="Red" />
+                <Setter Property="BorderThickness" Value="2" />
+               
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="ValidationStyleCB" TargetType="ComboBox" BasedOn="{StaticResource MaterialDesignOutlinedComboBox}">
+        <Style.Triggers>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="Red" />
+                <Setter Property="BorderThickness" Value="2" />
+             
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+
+
+</ResourceDictionary>
