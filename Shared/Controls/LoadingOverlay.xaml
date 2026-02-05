@@ -1,14 +1,14 @@
 <UserControl
-    x:Class="RevitCadConverter.Shared.Controls.LoadingOverlay"
+    x:Class="COBIeManager.Shared.Controls.LoadingOverlay"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:converters="clr-namespace:RevitCadConverter.Shared.Converters"
+    xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
 
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/RevitCadConverter;component/Styles.xaml" />
+                <ResourceDictionary Source="/COBIeManager;component/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
