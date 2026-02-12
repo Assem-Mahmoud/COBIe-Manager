@@ -175,20 +175,18 @@
     <Resource Include="Styles.xaml" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Features\ExampleFeature\Models\" />
-    <Folder Include="Features\ExampleFeature\ViewModels\" />
-    <Folder Include="Features\ExampleFeature\Views\" />
-  </ItemGroup>
-
   <!-- Exclude APS.Bridge and Aps.Core - they are separate projects -->
   <ItemGroup>
     <Compile Remove="APS.Bridge\**\*.cs" />
     <Compile Remove="Aps.Core\**\*.cs" />
+    <Compile Remove="Features\ExampleFeature\**" />
     <EmbeddedResource Remove="APS.Bridge\**\*" />
     <EmbeddedResource Remove="Aps.Core\**\*" />
+    <EmbeddedResource Remove="Features\ExampleFeature\**" />
     <None Remove="APS.Bridge\**\*" />
     <None Remove="Aps.Core\**\*" />
+    <None Remove="Features\ExampleFeature\**" />
+    <Page Remove="Features\ExampleFeature\**" />
   </ItemGroup>
 
   <!-- Post-build event to copy DLL to Revit addins folder for easy debugging -->
