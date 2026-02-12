@@ -2,109 +2,509 @@
     x:Class="COBIeManager.Features.CobieParameters.Views.CobieParametersWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:viewModels="clr-namespace:COBIeManager.Features.CobieParameters.ViewModels"
-    xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
-    Title="COBie Parameters" Height="600" Width="900"
+    xmlns:controls="clr-namespace:COBIeManager.Shared.Controls"
+    xmlns:shared="clr-namespace:COBIeManager.Shared.Services"
+    Title="COBie Parameters"
+    Width="950"
+    Height="650"
+    Background="Transparent"
+    FontFamily="{DynamicResource MaterialDesignFont}"
+    ResizeMode="CanResize"
     WindowStartupLocation="CenterOwner"
-    Background="{DynamicResource MaterialDesignPaper}"
-    FontFamily="{DynamicResource MaterialDesignFont}">
+    WindowStyle="SingleBorderWindow">
 
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- Custom app styles (includes MaterialDesign themes) -->
                 <ResourceDictionary Source="/COBIeManager;component/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <converters:BoolToAuthStatusConverter x:Key="BoolToAuthStatusConverter"/>
-            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
-            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+            <converters:BoolToAuthStatusConverter x:Key="BoolToAuthStatusConverter" />
+            <converters:BoolToAuthStatusIconConverter x:Key="BoolToAuthStatusIconConverter" />
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:IntegerToVisibilityConverter x:Key="IntegerToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+
+            <!--  Parameter Item Style  -->
+            <Style x:Key="ParameterItem" TargetType="Border">
+                <Setter Property="Background" Value="White" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="Margin" Value="8,4" />
+                <Setter Property="BorderBrush" Value="#E0E0E0" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#FFF8F5" />
+                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryLightBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  Modern ComboBox Style  -->
+            <Style
+                x:Key="ModernComboBox"
+                BasedOn="{StaticResource MaterialDesignOutlinedComboBox}"
+                TargetType="ComboBox">
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="MinHeight" Value="40" />
+                <Setter Property="FontSize" Value="14" />
+            </Style>
+
+            <!--  Tool Button Style  -->
+            <Style
+                x:Key="ToolButton"
+                BasedOn="{StaticResource MaterialDesignOutlinedButton}"
+                TargetType="Button">
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Height" Value="36" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
         </ResourceDictionary>
-       
     </Window.Resources>
 
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Grid>
+        <!--  Main Content  -->
+        <Border
+            materialDesign:ShadowAssist.Darken="True"
+            Background="#f1f1f1"
+            BorderThickness="1"
+            ClipToBounds="True"
+            CornerRadius="5"
+            SnapsToDevicePixels="True">
+            <Grid Margin="24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-        <!-- Auth Section -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-            <TextBlock Text="Authentication Status:" VerticalAlignment="Center" FontWeight="Medium"/>
-            <TextBlock Text="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusConverter}}"
-                       Margin="8,0,16,0" VerticalAlignment="Center">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                <Setter Property="Foreground" Value="Green"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsAuthenticated}" Value="False">
-                                <Setter Property="Foreground" Value="Red"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-            <Button Content="Login" Command="{Binding LoginCommand}"
-                    Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                    Style="{StaticResource MaterialDesignRaisedButton}"/>
-        </StackPanel>
+            <!--  Header Card with Auth Status  -->
+            <materialDesign:Card
+                Grid.Row="0"
+                Margin="0,0,0,16"
+                Style="{StaticResource ModernCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-        <!-- Toolbar -->
-        <Grid Grid.Row="1" Margin="0,0,0,16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock
+                            Margin="0,0,0,4"
+                            FontSize="20"
+                            Style="{StaticResource SectionHeader}"
+                            Text="COBie Parameters Management" />
+                        <TextBlock
+                            Margin="0,0,0,0"
+                            Style="{StaticResource SectionSubheader}"
+                            Text="Connect to APS and add COBie parameters to your Revit project" />
+                    </StackPanel>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <Button Content="Select All" Command="{Binding SelectAllCommand}" Margin="0,0,4,0"/>
-                <Button Content="Deselect All" Command="{Binding DeselectAllCommand}" Margin="0,0,4,0"/>
-                <Button Command="{Binding LoadParametersCommand}" ToolTip="Refresh">
-                    <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16"/>
+                    <!--  Auth Status Badge  -->
+                    <Border Grid.Column="1" Margin="16,0,0,0">
+                        <Border.Style>
+                            <Style BasedOn="{StaticResource StatusBadge}" TargetType="Border">
+                                <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                                <Setter Property="Background" Value="#FFEBEE" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                        <Setter Property="Background" Value="#E8F5E9" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Width="16"
+                                Height="16"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Kind="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusIconConverter}}">
+                                <materialDesign:PackIcon.Style>
+                                    <Style TargetType="materialDesign:PackIcon">
+                                        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </materialDesign:PackIcon.Style>
+                            </materialDesign:PackIcon>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Text="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusConverter}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </materialDesign:Card>
+
+            <!--  Collection Selection Card  -->
+            <materialDesign:Card
+                Grid.Row="1"
+                Margin="0,0,0,16"
+                Style="{StaticResource ModernCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <materialDesign:PackIcon
+                        Grid.Column="0"
+                        Width="24"
+                        Height="24"
+                        Margin="0,0,12,0"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource PrimaryBrush}"
+                        Kind="Database" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            Margin="0,0,0,4"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            Style="{StaticResource SectionSubheader}"
+                            Text="Select Collection" />
+                        <ComboBox
+                            materialDesign:HintAssist.Hint="Choose a collection..."
+                            DisplayMemberPath="Name"
+                            ItemsSource="{Binding Collections}"
+                            SelectedItem="{Binding SelectedCollection, Mode=TwoWay}"
+                            Style="{StaticResource ModernComboBox}" />
+                    </StackPanel>
+
+                    <Button
+                        Grid.Column="2"
+                        Margin="16,0,0,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding LoginCommand}"
+                        Content="Login"
+                        Style="{StaticResource PrimaryActionButton}"
+                        Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                </Grid>
+            </materialDesign:Card>
+
+            <!--  Toolbar Card  -->
+            <materialDesign:Card
+                Grid.Row="2"
+                Margin="0,0,0,16"
+                Padding="16,12"
+                Style="{StaticResource ModernCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button
+                            Command="{Binding SelectAllCommand}"
+                            Style="{StaticResource ToolButton}"
+                            ToolTip="Select all parameters">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Kind="SelectAll" />
+                                <TextBlock Margin="8,0,0,0" Text="Select All" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Command="{Binding DeselectAllCommand}"
+                            Style="{StaticResource ToolButton}"
+                            ToolTip="Deselect all parameters">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Kind="SelectAll" />
+                                <TextBlock Margin="8,0,0,0" Text="Deselect All" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Command="{Binding LoadParametersCommand}"
+                            Style="{StaticResource ToolButton}"
+                            ToolTip="Refresh parameters">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Kind="Refresh" />
+                                <TextBlock Margin="8,0,0,0" Text="Refresh" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  Search Box  -->
+                        <Border
+                            Margin="16,0,0,0"
+                            Padding="12,8"
+                            Background="White"
+                            BorderBrush="#E0E0E0"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <Grid>
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0,0,8,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Foreground="#9E9E9E"
+                                    Kind="Magnify" />
+                                <TextBox
+                                    Margin="26,0,0,0"
+                                    VerticalAlignment="Center"
+                                    materialDesign:HintAssist.Hint="Search parameters..."
+                                    BorderThickness="0"
+                                    Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                    TextWrapping="NoWrap" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!--  Selection Counter  -->
+                    <StackPanel
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal"
+                        Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Border Style="{StaticResource InfoBadge}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    FontWeight="Bold"
+                                    Style="{StaticResource InfoBadgeText}"
+                                    Text="{Binding SelectedCount}" />
+                                <TextBlock Style="{StaticResource InfoBadgeText}" Text=" / " />
+                                <TextBlock Style="{StaticResource InfoBadgeText}" Text="{Binding FilteredCount}" />
+                                <TextBlock
+                                    Margin="4,0,0,0"
+                                    Style="{StaticResource InfoBadgeText}"
+                                    Text=" selected" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:Card>
+
+            <!--  Parameters List Card  -->
+            <materialDesign:Card
+                Grid.Row="3"
+                Padding="0"
+                materialDesign:ElevationAssist.Elevation="Dp2">
+                <Grid>
+                    <!--  Parameters Table  -->
+                    <DataGrid
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        CanUserResizeColumns="False"
+                        CanUserReorderColumns="False"
+                        CanUserSortColumns="True"
+                        GridLinesVisibility="All"
+                        HeadersVisibility="Column"
+                        IsReadOnly="True"
+                        ItemsSource="{Binding FilteredParameters}"
+                        SelectedIndex="-1"
+                        SelectionMode="Single"
+                        Style="{StaticResource MaterialDesignDataGrid}"
+                        SelectionUnit="Cell"
+                        Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn
+                                Width="50"
+                                Binding="{Binding IsSelected, Mode=TwoWay}"
+                                ElementStyle="{StaticResource MaterialDesignCheckBox}" />
+                            <DataGridTextColumn
+                                Header="Parameter Name"
+                                Width="*"
+                                Binding="{Binding Name}"
+                                FontSize="14"
+                                FontWeight="Medium" />
+                            <DataGridTextColumn
+                                Header="Categories"
+                                Width="100"
+                                Binding="{Binding CategoryCountDisplay}"
+                                FontSize="12" />
+                            <DataGridTextColumn
+                                Header="Type"
+                                Width="100"
+                                Binding="{Binding DataTypeDisplay}"
+                                FontSize="12" />
+                            <DataGridTextColumn
+                                Header="Group"
+                                Width="120"
+                                Binding="{Binding GroupDisplay}"
+                                FontSize="12" />
+                        </DataGrid.Columns>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="Height" Value="Auto" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FFF8F5" />
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD" />
+                                        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                    </DataGrid>
+
+                    <!--  Loading Overlay  -->
+                    <Grid Background="#F5F5F5" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ProgressBar
+                                Width="140"
+                                Height="4"
+                                Margin="0,0,0,20"
+                                Foreground="{StaticResource PrimaryBrush}"
+                                IsIndeterminate="True" />
+                            <TextBlock
+                                FontSize="14"
+                                FontWeight="Medium"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="Loading parameters..." />
+                        </StackPanel>
+                    </Grid>
+
+                    <!--  Empty State (No Parameters Available)  -->
+                    <Grid Background="#F9F9F9" Visibility="{Binding HasNoParametersAndNotLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <materialDesign:PackIcon
+                                Width="72"
+                                Height="72"
+                                Margin="0,0,0,20"
+                                HorizontalAlignment="Center"
+                                Foreground="#BDBDBD"
+                                Kind="DatabaseOff" />
+                            <TextBlock
+                                Margin="0,0,0,8"
+                                HorizontalAlignment="Center"
+                                FontSize="16"
+                                FontWeight="Medium"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="No parameters available" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!--  Empty State (No Search Results)  -->
+                    <Grid Background="#F9F9F9" Visibility="{Binding HasNoSearchResults, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <materialDesign:PackIcon
+                                Width="72"
+                                Height="72"
+                                Margin="0,0,0,20"
+                                HorizontalAlignment="Center"
+                                Foreground="#BDBDBD"
+                                Kind="Magnify" />
+                            <TextBlock
+                                Margin="0,0,0,8"
+                                HorizontalAlignment="Center"
+                                FontSize="16"
+                                FontWeight="Medium"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="No parameters found" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="13"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="Try a different search term" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </materialDesign:Card>
+
+            <!--  Footer with Status and Action Button  -->
+            <Grid Grid.Row="4" Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!--  Status Message  -->
+                <Border
+                    Grid.Column="0"
+                    Margin="0"
+                    Padding="12"
+                    Style="{StaticResource InfoCard}"
+                    Visibility="{Binding HasStatusMessage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon
+                            Width="20"
+                            Height="20"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource InfoBrush}"
+                            Kind="Information" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource PrimaryTextBrush}"
+                            Text="{Binding StatusMessage}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!--  Primary Action Button  -->
+                <Button
+                    Grid.Column="1"
+                    Height="40"
+                    Margin="16,0,0,0"
+                    Padding="24,8"
+                    Command="{Binding AddToProjectCommand}"
+                    FontSize="14"
+                    IsEnabled="{Binding CanAddToProject}"
+                    Style="{StaticResource PrimaryActionButton}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon
+                            Width="18"
+                            Height="18"
+                            Margin="0"
+                            VerticalAlignment="Center"
+                            Kind="Plus" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Text="Add to Project" />
+                    </StackPanel>
                 </Button>
-            </StackPanel>
-        </Grid>
-
-        <!-- Parameters List -->
-        <Border Grid.Row="2" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1"
-                Background="{DynamicResource MaterialDesignCardBackground}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Parameters}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <CheckBox Content="{Binding Name}"
-                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                      Margin="8,4"
-                                      IsEnabled="True"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            </Grid>
+            </Grid>
         </Border>
 
-        <!-- Loading Overlay -->
-        <Grid Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
-              Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <ProgressBar IsIndeterminate="True" Width="200" Height="4" Margin="0,0,0,16"/>
-                <TextBlock Text="Loading..." HorizontalAlignment="Center"/>
-            </StackPanel>
-        </Grid>
-
-        <!-- Footer -->
-        <Grid Grid.Row="3" Margin="0,16,0,0">
-            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
-                       TextWrapping="Wrap" MaxWidth="600"/>
-            <Button Content="Add to Project" Command="{Binding AddToProjectCommand}"
-                    HorizontalAlignment="Right" Style="{StaticResource MaterialDesignRaisedButton}"
-                    IsEnabled="{Binding IsAuthenticated}"/>
-        </Grid>
+        <!--  Shared Loading Overlay (covers full window)  -->
+        <controls:LoadingOverlay DataContext="{x:Static shared:LoadingOverlayService.ViewModel}" />
     </Grid>
+
 
 </Window>

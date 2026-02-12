@@ -4,7 +4,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using COBIeManager.Features.CobieParameters.Models;
+using Aps.Core.Models;
+using Aps.Core.Services;
 using Newtonsoft.Json;
 
 namespace COBIeManager.Shared.Services;
@@ -20,6 +21,7 @@ public class ParameterCacheService
         "Parameters");
 
     private static readonly string CacheFilePath = Path.Combine(CacheDirectory, "cache.json");
+    private static readonly string CategoriesCacheFilePath = Path.Combine(CacheDirectory, "categories_cache.json");
     private static readonly TimeSpan CacheExpiry = TimeSpan.FromHours(24);
 
     /// <summary>
@@ -133,13 +135,129 @@ public class ParameterCacheService
     public string GetCacheFilePath() => CacheFilePath;
 
     /// <summary>
-    /// Internal cache data structure
+    /// Save categories to cache file
+    /// </summary>
+    public async Task SaveCategoriesCacheAsync(Dictionary<string, string> categoryMap)
+    {
+        try
+        {
+            // Ensure directory exists
+            Directory.CreateDirectory(CacheDirectory);
+
+            var cacheData = new CategoryCacheData
+            {
+                CachedAt = DateTime.UtcNow,
+                CategoryMap = categoryMap,
+                Version = "1.0"
+            };
+
+            var json = JsonConvert.SerializeObject(cacheData, Formatting.Indented);
+            await Task.Run(() => File.WriteAllText(CategoriesCacheFilePath, json));
+            System.Diagnostics.Debug.WriteLine($"[CategoryCache] Saved {categoryMap.Count} categories to cache");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CategoryCache] Failed to save category cache: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Load categories from cache file
+    /// </summary>
+    public async Task<Dictionary<string, string>?> LoadCategoriesCacheAsync()
+    {
+        try
+        {
+            if (!File.Exists(CategoriesCacheFilePath))
+            {
+                System.Diagnostics.Debug.WriteLine($"[CategoryCache] Cache file not found");
+                return null;
+            }
+
+            var json = await Task.Run(() => File.ReadAllText(CategoriesCacheFilePath));
+            var cacheData = JsonConvert.DeserializeObject<CategoryCacheData>(json);
+
+            if (cacheData == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CategoryCache] Failed to deserialize cache data");
+                return null;
+            }
+
+            // Validate cache hasn't expired
+            if (DateTime.UtcNow - cacheData.CachedAt > CacheExpiry)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CategoryCache] Cache expired (cached: {cacheData.CachedAt})");
+                return null;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[CategoryCache] Loaded {cacheData.CategoryMap.Count} categories from cache");
+            return cacheData.CategoryMap;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CategoryCache] Failed to load category cache: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Check if category cache exists and is valid
+    /// </summary>
+    public bool IsCategoriesCacheValid()
+    {
+        try
+        {
+            if (!File.Exists(CategoriesCacheFilePath))
+                return false;
+
+            var json = File.ReadAllText(CategoriesCacheFilePath);
+            var cacheData = JsonConvert.DeserializeObject<CategoryCacheData>(json);
+
+            return cacheData != null && DateTime.UtcNow - cacheData.CachedAt <= CacheExpiry;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Clear the category cache file
+    /// </summary>
+    public void ClearCategoriesCache()
+    {
+        try
+        {
+            if (File.Exists(CategoriesCacheFilePath))
+            {
+                File.Delete(CategoriesCacheFilePath);
+                System.Diagnostics.Debug.WriteLine($"[CategoryCache] Cache cleared");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[CategoryCache] Failed to clear category cache: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Internal cache data structure for parameters
     /// </summary>
     private class ParameterCacheData
     {
         public string AccountId { get; set; } = string.Empty;
         public DateTime CachedAt { get; set; }
         public List<CobieParameterDefinition> Parameters { get; set; } = new();
+        public string Version { get; set; } = "1.0";
+    }
+
+    /// <summary>
+    /// Internal cache data structure for categories
+    /// </summary>
+    private class CategoryCacheData
+    {
+        public DateTime CachedAt { get; set; }
+        public Dictionary<string, string> CategoryMap { get; set; } = new();
         public string Version { get; set; } = "1.0";
     }
 }

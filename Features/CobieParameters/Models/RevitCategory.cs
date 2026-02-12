@@ -1,4 +1,5 @@
 using Autodesk.Revit.DB;
+using Aps.Core.Models;
 
 namespace COBIeManager.Features.CobieParameters.Models;
 

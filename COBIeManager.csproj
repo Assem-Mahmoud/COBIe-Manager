@@ -74,13 +74,18 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
-    <PackageReference Include="MaterialDesignColors" Version="5.2.1" />
+    <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.135" />
     <PackageReference Include="Nuke.Common" Version="9.0.4" />
     <PackageReference Include="Revit.Async" Version="2.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Project references -->
+  <ItemGroup>
+    <ProjectReference Include="Aps.Core\Aps.Core.csproj" />
   </ItemGroup>
 
   <!-- System.Net.Http reference for .NET Framework 4.8 -->
@@ -176,11 +181,14 @@
     <Folder Include="Features\ExampleFeature\Views\" />
   </ItemGroup>
 
-  <!-- Exclude APS.Bridge - it's a separate ASP.NET Core project -->
+  <!-- Exclude APS.Bridge and Aps.Core - they are separate projects -->
   <ItemGroup>
     <Compile Remove="APS.Bridge\**\*.cs" />
+    <Compile Remove="Aps.Core\**\*.cs" />
     <EmbeddedResource Remove="APS.Bridge\**\*" />
+    <EmbeddedResource Remove="Aps.Core\**\*" />
     <None Remove="APS.Bridge\**\*" />
+    <None Remove="Aps.Core\**\*" />
   </ItemGroup>
 
   <!-- Post-build event to copy DLL to Revit addins folder for easy debugging -->
@@ -203,6 +211,9 @@
       <DllFiles Include="$(OutDir)*.dll" Exclude="$(OutDir)COBIeManager.dll;$(OutDir)RevitAPI.dll;$(OutDir)RevitAPIUI.dll;$(OutDir)UIFramework.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(DllFiles)" DestinationFolder="$(CobieManagerFolder)" SkipUnchangedFiles="false" />
+
+    <!-- Copy config file for binding redirects -->
+    <Copy SourceFiles="$(OutDir)COBIeManager.dll.config" DestinationFolder="$(CobieManagerFolder)" SkipUnchangedFiles="false" Condition="Exists('$(OutDir)COBIeManager.dll.config')" />
 
     <!-- Copy manifest file to root Revit addins folder (NOT inside COBIeManager) -->
     <Copy SourceFiles="$(ProjectDir)COBIeManager.addin" DestinationFolder="$(RevitAddinsRootFolder)" SkipUnchangedFiles="false" />

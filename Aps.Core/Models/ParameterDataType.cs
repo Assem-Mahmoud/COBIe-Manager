@@ -1,4 +1,4 @@
-namespace COBIeManager.Features.CobieParameters.Models;
+namespace Aps.Core.Models;
 
 /// <summary>
 /// Parameter data types supported by Revit

@@ -1,5 +1,8 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using Aps.Core.Interfaces;
+using Aps.Core.Logging;
+using Aps.Core.Services;
 using COBIeManager.Shared.DependencyInjection;
 using COBIeManager.Shared.Logging;
 using COBIeManager.Shared.Interfaces;
@@ -111,20 +114,74 @@ namespace COBIeManager
                 logger.Info("Registering IWarningSuppressionService singleton...");
                 services.RegisterSingleton<IWarningSuppressionService>(new WarningSuppressionService(logger));
 
-                // COBie Parameters services
-                logger.Info("Registering IApsBridgeClient singleton...");
-                services.AddSingleton<Shared.Interfaces.IApsBridgeClient>(sp => new Shared.APS.ApsBridgeClient());
+                // COBie Parameters services - Direct APS integration
+                logger.Info("Registering FileApsLogger singleton...");
+                var apsLogger = new FileApsLogger();
+                services.RegisterSingleton<IApsLogger>(apsLogger);
+                logger.Info($"APS Auth log file: {apsLogger.GetLogPath()}");
 
-                logger.Info("Registering ApsBridgeProcessService singleton...");
-                services.AddSingleton<Shared.Services.ApsBridgeProcessService>(sp =>
+                logger.Info("Registering ApsAuthService singleton...");
+                var authService = new ApsAuthService(apsLogger);
+                services.RegisterSingleton<Aps.Core.Services.ApsAuthService>(authService);
+
+                logger.Info("Registering ITokenStorage singleton...");
+                services.RegisterSingleton<ITokenStorage>(new ApsTokenStorage());
+
+                logger.Info("Registering ApsSessionManager singleton...");
+                services.AddSingleton<ApsSessionManager>(sp =>
                 {
-                    var bridgeClient = sp.GetService<Shared.Interfaces.IApsBridgeClient>();
-                    return new Shared.Services.ApsBridgeProcessService(bridgeClient);
+                    var resolvedAuthService = sp.GetService<Aps.Core.Services.ApsAuthService>();
+                    var tokenStorage = sp.GetService<ITokenStorage>();
+                    var apsLoggerFromSp = sp.GetService<IApsLogger>();
+
+                    if (resolvedAuthService == null)
+                        throw new InvalidOperationException("Failed to resolve ApsAuthService during ApsSessionManager registration");
+                    if (tokenStorage == null)
+                        throw new InvalidOperationException("Failed to resolve ITokenStorage during ApsSessionManager registration");
+
+                    return new ApsSessionManager(resolvedAuthService, tokenStorage, apsLoggerFromSp);
+                });
+
+                logger.Info("Registering ApsCategoryStorageService singleton...");
+                services.AddSingleton<ApsCategoryStorageService>(sp =>
+                {
+                    var sessionManager = sp.GetService<ApsSessionManager>();
+                    var apsLoggerFromSp = sp.GetService<IApsLogger>();
+
+                    if (sessionManager == null)
+                        throw new InvalidOperationException("Failed to resolve ApsSessionManager during ApsCategoryStorageService registration");
+
+                    return new ApsCategoryStorageService(sessionManager, apsLoggerFromSp);
+                });
+
+                logger.Info("Registering ApsParametersService singleton...");
+                services.AddSingleton<ApsParametersService>(sp =>
+                {
+                    var sessionManager = sp.GetService<ApsSessionManager>();
+                    var apsLoggerFromSp = sp.GetService<IApsLogger>();
+                    var categoryStorage = sp.GetService<ApsCategoryStorageService>();
+
+                    if (sessionManager == null)
+                        throw new InvalidOperationException("Failed to resolve ApsSessionManager during ApsParametersService registration");
+                    if (apsLoggerFromSp == null)
+                        throw new InvalidOperationException("Failed to resolve IApsLogger during ApsParametersService registration");
+                    if (categoryStorage == null)
+                        throw new InvalidOperationException("Failed to resolve ApsCategoryStorageService during ApsParametersService registration");
+
+                    return new ApsParametersService(sessionManager, apsLoggerFromSp, categoryStorage);
                 });
 
                 logger.Info("Registering ParameterCacheService singleton...");
                 services.RegisterSingleton(new Shared.Services.ParameterCacheService());
 
+                logger.Info("Registering IParameterCreationService singleton...");
+                services.RegisterSingleton<IParameterCreationService>(new Shared.Services.ParameterCreationService());
+
+                logger.Info("Registering IParameterBindingService singleton...");
+                services.RegisterSingleton<IParameterBindingService>(new Shared.Services.ParameterBindingService(logger));
+
+                logger.Info("Registering IParameterConflictService singleton...");
+                services.RegisterSingleton<IParameterConflictService>(new Shared.Services.ParameterConflictService());
 
                 logger.Info("Building service provider...");
                 var serviceProvider = services.BuildServiceProvider();

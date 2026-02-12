@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace COBIeManager.Features.CobieParameters.Models;
+namespace Aps.Core.Models;
 
 /// <summary>
 /// Represents a COBie parameter definition retrieved from APS
@@ -51,6 +51,12 @@ public class CobieParameterDefinition
     public string[] CategoryBindingIds { get; set; } = System.Array.Empty<string>();
 
     /// <summary>
+    /// Array of APS category names (populated from category lookup)
+    /// </summary>
+    [JsonProperty("categoryNames")]
+    public string[] CategoryNames { get; set; } = System.Array.Empty<string>();
+
+    /// <summary>
     /// Associated label names
     /// </summary>
     [JsonProperty("labels")]
@@ -73,10 +79,4 @@ public class CobieParameterDefinition
     /// </summary>
     [JsonProperty("groupBindingId")]
     public string? GroupBindingId { get; set; }
-
-    /// <summary>
-    /// UI selection state (not serialized)
-    /// </summary>
-    [JsonIgnore]
-    public bool IsSelected { get; set; }
 }

@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
-using COBIeManager.Features.CobieParameters.Models;
 using Newtonsoft.Json;
 
-namespace COBIeManager.Shared.APS.Models;
+namespace Aps.Core.Models;
 
 /// <summary>
 /// Response DTOs from APS Parameters API
