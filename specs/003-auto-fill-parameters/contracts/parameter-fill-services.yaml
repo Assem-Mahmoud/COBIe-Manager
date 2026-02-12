@@ -1,0 +1,258 @@
+# Parameter Fill Service Contracts
+
+**Feature**: 003-auto-fill-parameters
+**Version**: 1.0.0
+**Date**: 2025-02-12
+
+## Overview
+
+This document defines internal service contracts for the Auto-Fill Parameters feature. These interfaces define the boundaries between core business logic and the Revit API interaction layer.
+
+---
+
+## ILevelAssignmentService
+
+Determines if elements are within a level band and assigns level parameter values.
+
+```yaml
+name: ILevelAssignmentService
+namespace: COBIeManager.Shared.Interfaces
+description: |
+  Service for detecting element position relative to level bands
+  and assigning level parameter values to elements.
+methods:
+  - name: IsElementInLevelBand
+    returns: LevelBandPosition
+    description: |
+      Determines where an element is positioned relative to the level band.
+      Returns LevelBandPosition enum value.
+    parameters:
+      - name: element
+        type: Autodesk.Revit.DB.Element
+        description: The element to evaluate
+      - name: baseLevel
+        type: Autodesk.Revit.DB.Level
+        description: The lower level of the band
+      - name: topLevel
+        type: Autodesk.Revit.DB.Level
+        description: The upper level of the band
+
+  - name: AssignLevelParameter
+    returns: ParameterAssignmentResult
+    description: |
+      Safely assigns the level parameter to an element.
+      Skips if parameter doesn't exist, is read-only, or value exists (when overwrite=false).
+    parameters:
+      - name: element
+        type: Autodesk.Revit.DB.Element
+        description: The element to modify
+      - name: levelName
+        type: string
+        description: The level name to assign (e.g., "Level 1")
+      - name: parameterName
+        type: string
+        description: The Revit parameter name
+      - name: overwrite
+        type: bool
+        description: Whether to overwrite existing values
+```
+
+---
+
+## IRoomAssignmentService
+
+Determines room ownership for elements and assigns room parameters.
+
+```yaml
+name: IRoomAssignmentService
+namespace: COBIeManager.Shared.Interfaces
+description: |
+  Service for detecting room ownership of elements
+  and assigning room parameter values.
+methods:
+  - name: GetRoomForElement
+    returns: Autodesk.Revit.DB.Room?
+    description: |
+      Returns the room associated with an element using a tiered strategy:
+      1. Direct Room property (if available)
+      2. FromRoom/ToRoom for doors (prefer FromRoom)
+      3. Point-in-room test using element's LocationPoint or LocationCurve midpoint
+      Returns null if no room can be determined.
+    parameters:
+      - name: element
+        type: Autodesk.Revit.DB.Element
+        description: The element to evaluate
+      - name: document
+        type: Autodesk.Revit.DB.Document
+        description: The Revit document
+      - name: phase
+        type: Autodesk.Revit.DB.Phase
+        description: The phase to use for room lookup (typically ActivePhase)
+
+  - name: AssignRoomParameters
+    returns: RoomAssignmentResult
+    description: |
+      Assigns room number, name, and combined reference parameters
+      to an element. Skips parameters that don't exist or are read-only.
+    parameters:
+      - name: element
+        type: Autodesk.Revit.DB.Element
+        description: The element to modify
+      - name: room
+        type: Autodesk.Revit.DB.Room
+        description: The room with data to assign
+      - name: parameterMapping
+        type: ParameterMapping
+        description: Mapping of logical parameter names to Revit parameter names
+      - name: overwrite
+        type: bool
+        description: Whether to overwrite existing values
+```
+
+---
+
+## IParameterFillService
+
+Orchestrates the parameter fill operation with progress reporting.
+
+```yaml
+name: IParameterFillService
+namespace: COBIeManager.Shared.Interfaces
+description: |
+  Main service that coordinates level and room assignment
+  for a batch of elements with progress reporting.
+methods:
+  - name: PreviewFill
+    returns: PreviewSummary
+    description: |
+      Analyzes elements without modifying the document.
+      Returns estimated counts and validation warnings.
+    parameters:
+      - name: document
+        type: Autodesk.Revit.DB.Document
+        description: The Revit document
+      - name: config
+        type: FillConfiguration
+        description: User configuration for the fill operation
+
+  - name: ExecuteFill
+    returns: ProcessingSummary
+    description: |
+      Executes the fill operation within a Revit transaction.
+      Updates progress via callback during processing.
+    parameters:
+      - name: document
+        type: Autodesk.Revit.DB.Document
+        description: The Revit document
+      - name: config
+        type: FillConfiguration
+        description: User configuration for the fill operation
+      - name: progressCallback
+        type: Action<int, string>
+        description: |
+          Callback for progress updates.
+          First int: Current count of processed elements
+          Second string: Current status message
+```
+
+---
+
+## IProcessingLogger
+
+Handles detailed processing log export to text file.
+
+```yaml
+name: IProcessingLogger
+namespace: COBIeManager.Shared.Interfaces
+description: |
+  Service for exporting processing results to a text file
+  for user review and debugging.
+methods:
+  - name: ExportLog
+    returns: void
+    description: |
+      Writes a detailed log file with timestamp.
+      Includes processing summary and lists of skipped elements by reason.
+    parameters:
+      - name: summary
+        type: ProcessingSummary
+        description: The processing summary to export
+      - name: filePath
+        type: string
+        description: Full path to the output text file
+
+  - name: GenerateLogContent
+    returns: string
+    description: |
+      Generates the log content as a string.
+      Useful for previewing or alternative export methods.
+    parameters:
+      - name: summary
+        type: ProcessingSummary
+        description: The processing summary to format
+```
+
+---
+
+## Enums and Result Types
+
+### LevelBandPosition
+
+```yaml
+name: LevelBandPosition
+namespace: COBIeManager.Shared.Models
+description: Position of an element relative to a level band
+values:
+  - name: InBand
+    value: 0
+    description: Element intersects the level band
+  - name: BelowBand
+    value: 1
+    description: Element is entirely below the level band
+  - name: AboveBand
+    value: 2
+    description: Element is entirely above the level band
+  - name: NoBoundingBox
+    value: 3
+    description: Element has no bounding box
+```
+
+### RoomDetectionMethod
+
+```yaml
+name: RoomDetectionMethod
+namespace: COBIeManager.Shared.Models
+description: Method used to detect room association
+values:
+  - name: DirectRoomProperty
+    value: 0
+    description: Element.Room property was used
+  - name: FromRoomProperty
+    value: 1
+    description: Door.FromRoom property was used
+  - name: ToRoomProperty
+    value: 2
+    description: Door.ToRoom property was used (fallback)
+  - name: PointInRoom
+    value: 3
+    description: Room.GetRoomAtPoint() was used
+  - name: NoLocation
+    value: 4
+    description: Element has no locatable point
+  - name: NoRoomFound
+    value: 5
+    description: Point tested but no room contains it
+```
+
+---
+
+## Implementation Notes
+
+1. **Thread Safety**: All services must be callable from the Revit main thread
+2. **Transaction Requirements**:
+   - ILevelAssignmentService: No transaction needed (read operations)
+   - IRoomAssignmentService: No transaction needed (read operations)
+   - IParameterFillService: Creates/owns transaction for write operations
+   - IProcessingLogger: No transaction needed (file I/O)
+3. **Error Handling**: Services should log errors but never throw exceptions that roll back the transaction
+4. **Null Safety**: All services handle null elements gracefully (return skip results)

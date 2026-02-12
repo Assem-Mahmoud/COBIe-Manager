@@ -1,0 +1,532 @@
+<Window
+    x:Class="COBIeManager.Features.CobieParameters.Views.ParameterCreationResultWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:viewModels="clr-namespace:COBIeManager.Features.CobieParameters.ViewModels"
+    Title="Parameter Creation Results"
+    Width="800"
+    Height="550"
+    Background="Transparent"
+    FontFamily="{DynamicResource MaterialDesignFont}"
+    ResizeMode="CanResize"
+    WindowStartupLocation="CenterOwner"
+    WindowStyle="None">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/COBIeManager;component/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  Result Item Style  -->
+            <Style x:Key="ResultItem" TargetType="Border">
+                <Setter Property="Background" Value="White" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="Margin" Value="0,6" />
+                <Setter Property="BorderBrush" Value="#E0E0E0" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <!--  Modern TabItem Style  -->
+            <Style x:Key="ModernTabItem" TargetType="TabItem">
+                <Setter Property="Padding" Value="16,10" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="Medium" />
+            </Style>
+
+            <!--  Error Item Style  -->
+            <Style x:Key="ErrorItem" TargetType="Border">
+                <Setter Property="Background" Value="#FFEBEE" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="Margin" Value="0,6" />
+                <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border
+        materialDesign:ShadowAssist.Darken="True"
+        Background="#f1f1f1"
+        BorderThickness="1"
+        ClipToBounds="True"
+        CornerRadius="5"
+        SnapsToDevicePixels="True">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!--  Header Card  -->
+            <materialDesign:Card
+                Grid.Row="0"
+                Margin="0,0,0,16"
+                Style="{StaticResource ModernCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Success/Info Icon  -->
+                    <Border
+                        Grid.Column="0"
+                        Width="56"
+                        Height="56"
+                        Margin="0,0,16,0"
+                        VerticalAlignment="Top"
+                        Background="#E8F5E9"
+                        CornerRadius="28">
+                        <materialDesign:PackIcon
+                            Width="32"
+                            Height="32"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource SuccessBrush}"
+                            Kind="CheckCircle" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock
+                            Margin="0,0,0,4"
+                            FontSize="20"
+                            Style="{StaticResource SectionHeader}"
+                            Text="{Binding Title}" />
+
+                        <!--  Summary in highlighted card  -->
+                        <Border
+                            Margin="0,0,0,8"
+                            Padding="12,10"
+                            Background="#E8F5E9"
+                            BorderBrush="{StaticResource SuccessBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                            <TextBlock
+                                FontSize="14"
+                                Foreground="{StaticResource PrimaryTextBrush}"
+                                Text="{Binding Summary}"
+                                TextWrapping="Wrap" />
+                        </Border>
+
+                        <!--  Stats Row  -->
+                        <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                            <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource StatValue}"
+                                        Text="{Binding CreatedCount}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource StatLabel}"
+                                        Text="Created" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Foreground="{StaticResource InfoBrush}"
+                                        Style="{StaticResource StatValue}"
+                                        Text="{Binding BoundCount}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource StatLabel}"
+                                        Text="Bound" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Foreground="{StaticResource WarningBrush}"
+                                        Style="{StaticResource StatValue}"
+                                        Text="{Binding SkippedCount}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource StatLabel}"
+                                        Text="Skipped" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:Card>
+
+            <!--  Help/Info Card  -->
+            <Border
+                Grid.Row="1"
+                Style="{StaticResource InfoCard}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <materialDesign:PackIcon
+                            Grid.Column="0"
+                            Width="22"
+                            Height="22"
+                            Margin="0,0,10,0"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource InfoBrush}"
+                            Kind="InformationOutline" />
+
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="0"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource InfoBrush}"
+                            Style="{StaticResource SectionSubheader}"
+                            Text="Where to find your parameters" />
+                    </Grid>
+
+                    <StackPanel Margin="32,0,0,0">
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon
+                                Grid.Column="0"
+                                Width="8"
+                                Height="8"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource InfoBrush}"
+                                Kind="CircleSmall" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="13"
+                                Foreground="{StaticResource PrimaryTextBrush}"
+                                Text="Instance parameters: Select an element and check Properties palette" />
+                        </Grid>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon
+                                Grid.Column="0"
+                                Width="8"
+                                Height="8"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource InfoBrush}"
+                                Kind="CircleSmall" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="13"
+                                Foreground="{StaticResource PrimaryTextBrush}"
+                                Text="Type parameters: Edit Type dialog (or element's Type properties)" />
+                        </Grid>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon
+                                Grid.Column="0"
+                                Width="8"
+                                Height="8"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource InfoBrush}"
+                                Kind="CircleSmall" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="13"
+                                Foreground="{StaticResource PrimaryTextBrush}"
+                                Text="Parameters appear under the 'Data' parameter group" />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon
+                                Grid.Column="0"
+                                Width="8"
+                                Height="8"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                Foreground="#9E9E9E"
+                                Kind="CircleSmall" />
+                            <TextBlock
+                                Grid.Column="1"
+                                FontSize="13"
+                                FontStyle="Italic"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="New parameters have no value until you set them" />
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!--  Modern TabControl  -->
+            <materialDesign:Card
+                Grid.Row="2"
+                Padding="0"
+                materialDesign:ElevationAssist.Elevation="Dp2">
+                <TabControl Background="Transparent" BorderThickness="0">
+                    <!--  Created Parameters Tab  -->
+                    <TabItem Header="Created Parameters" Style="{StaticResource ModernTabItem}">
+                        <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding CreatedParameters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource ResultItem}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <materialDesign:PackIcon
+                                                    Grid.Column="0"
+                                                    Width="22"
+                                                    Height="22"
+                                                    Margin="0,2,12,0"
+                                                    VerticalAlignment="Top"
+                                                    Foreground="{StaticResource SuccessBrush}"
+                                                    Kind="PlusCircle" />
+
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock
+                                                        FontSize="14"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{StaticResource PrimaryTextBrush}"
+                                                        Text="{Binding Name}" />
+                                                    <TextBlock
+                                                        Margin="0,4,0,0"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                        Text="{Binding Detail}"
+                                                        TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!--  Bound Parameters Tab  -->
+                    <TabItem Header="Bound Parameters" Style="{StaticResource ModernTabItem}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <!--  Info banner  -->
+                                <Border
+                                    Margin="16,16,16,8"
+                                    Padding="16,12"
+                                    Background="#E3F2FD"
+                                    BorderBrush="{StaticResource InfoBrush}"
+                                    BorderThickness="0,0,0,3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <materialDesign:PackIcon
+                                            Grid.Column="0"
+                                            Width="20"
+                                            Height="20"
+                                            Margin="0,0,12,0"
+                                            VerticalAlignment="Center"
+                                            Foreground="{StaticResource InfoBrush}"
+                                            Kind="Information" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            Foreground="{StaticResource PrimaryTextBrush}"
+                                            Text="These parameters are now available in your Revit project on the following categories:" />
+                                    </Grid>
+                                </Border>
+
+                                <ItemsControl Margin="16,0,16,16" ItemsSource="{Binding BoundParameters}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource ResultItem}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <materialDesign:PackIcon
+                                                        Grid.Column="0"
+                                                        Width="22"
+                                                        Height="22"
+                                                        Margin="0,2,12,0"
+                                                        VerticalAlignment="Top"
+                                                        Foreground="{StaticResource InfoBrush}"
+                                                        Kind="LinkVariant" />
+
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock
+                                                            FontSize="14"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource PrimaryTextBrush}"
+                                                            Text="{Binding Name}" />
+                                                        <TextBlock
+                                                            Margin="0,4,0,0"
+                                                            FontSize="12"
+                                                            Foreground="{StaticResource SecondaryTextBrush}"
+                                                            Text="{Binding Detail}"
+                                                            TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!--  Skipped Parameters Tab  -->
+                    <TabItem Header="Skipped Parameters" Style="{StaticResource ModernTabItem}">
+                        <ScrollViewer Padding="16" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding SkippedParameters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource WarningBrush}" Style="{StaticResource ResultItem}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <materialDesign:PackIcon
+                                                    Grid.Column="0"
+                                                    Width="22"
+                                                    Height="22"
+                                                    Margin="0,2,12,0"
+                                                    VerticalAlignment="Top"
+                                                    Foreground="{StaticResource WarningBrush}"
+                                                    Kind="AlertCircle" />
+
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock
+                                                        FontSize="14"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{StaticResource PrimaryTextBrush}"
+                                                        Text="{Binding Name}" />
+                                                    <TextBlock
+                                                        Margin="0,4,0,0"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                        Text="{Binding Detail}"
+                                                        TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!--  Errors Tab  -->
+                    <TabItem Header="Errors" Style="{StaticResource ModernTabItem}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Border Padding="16">
+                                <Grid>
+                                    <ItemsControl ItemsSource="{Binding Errors}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource ErrorItem}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <materialDesign:PackIcon
+                                                            Grid.Column="0"
+                                                            Width="22"
+                                                            Height="22"
+                                                            Margin="0,2,12,0"
+                                                            VerticalAlignment="Top"
+                                                            Foreground="{StaticResource ErrorBrush}"
+                                                            Kind="AlertOctagon" />
+
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            FontSize="13"
+                                                            Foreground="{StaticResource ErrorBrush}"
+                                                            Text="{Binding}"
+                                                            TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!--  Empty state when no errors  -->
+                                    <StackPanel
+                                        Margin="0,40,0,0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding HasNoErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <materialDesign:PackIcon
+                                            Width="56"
+                                            Height="56"
+                                            Margin="0,0,0,16"
+                                            HorizontalAlignment="Center"
+                                            Foreground="{StaticResource SuccessBrush}"
+                                            Kind="CheckCircle" />
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="15"
+                                            FontWeight="Medium"
+                                            Foreground="{StaticResource SuccessBrush}"
+                                            Text="No errors occurred during parameter creation." />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </materialDesign:Card>
+
+            <!--  Footer Actions  -->
+            <Grid Grid.Row="3" Margin="0,16,0,0">
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button
+                        Width="110"
+                        Height="40"
+                        Padding="20,8"
+                        Click="Close_Click"
+                        FontSize="14"
+                        Style="{StaticResource SecondaryActionButton}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Width="18"
+                                Height="18"
+                                Margin="0"
+                                VerticalAlignment="Center"
+                                Kind="Close" />
+                            <TextBlock
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Text="Close" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+
+</Window>
