@@ -38,8 +38,8 @@ namespace COBIeManager.Shared.Interfaces
         /// <param name="logger">Logger for tracking results</param>
         /// <param name="parameterName">Parameter name (default: "ACG-4D-Level")</param>
         /// <param name="overwrite">Whether to overwrite existing values</param>
-        /// <returns>True if successful, false otherwise</returns>
-        bool AssignLevelParameter(
+        /// <returns>ParameterAssignmentResult indicating success, skip, or failure with reason</returns>
+        ParameterAssignmentResult AssignLevelParameter(
             Element element,
             string levelName,
             IProcessingLogger logger,

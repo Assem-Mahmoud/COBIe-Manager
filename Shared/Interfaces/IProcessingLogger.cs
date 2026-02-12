@@ -18,6 +18,22 @@ namespace COBIeManager.Shared.Interfaces
         void LogSuccess(ElementId elementId, string category, string details);
 
         /// <summary>
+        /// Logs a level parameter that was successfully filled
+        /// </summary>
+        /// <param name="elementId">ID of the element</param>
+        /// <param name="category">Element category name</param>
+        /// <param name="levelName">Level name that was assigned</param>
+        void LogLevelParameterFilled(ElementId elementId, string category, string levelName);
+
+        /// <summary>
+        /// Logs room parameters that were successfully filled
+        /// </summary>
+        /// <param name="elementId">ID of the element</param>
+        /// <param name="category">Element category name</param>
+        /// <param name="roomInfo">Room information that was assigned</param>
+        void LogRoomParameterFilled(ElementId elementId, string category, string roomInfo);
+
+        /// <summary>
         /// Logs an element that was skipped
         /// </summary>
         /// <param name="elementId">ID of the skipped element</param>

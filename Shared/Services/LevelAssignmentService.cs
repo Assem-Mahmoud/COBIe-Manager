@@ -5,6 +5,7 @@ using Autodesk.Revit.DB;
 using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Logging;
+using COBIeManager.Shared.Models;
 
 namespace COBIeManager.Shared.Services
 {
@@ -49,27 +50,36 @@ namespace COBIeManager.Shared.Services
                 {
                     case LevelBandPosition.InBand:
                         // Element is within the level band
-                        if (AssignLevelParameter(element, levelName, logger))
+                        var assignResult = AssignLevelParameter(element, levelName, logger);
+                        if (assignResult.Success)
                         {
                             result.ElementsAssigned++;
                             logger.LogSuccess(element.Id, element.Category?.Name, $"Assigned to level '{levelName}'");
                         }
+                        else if (assignResult.Skipped)
+                        {
+                            result.ElementsSkippedNoBoundingBox++;
+                            logger.LogSkip(element.Id, element.Category?.Name, assignResult.SkipReason);
+                        }
                         else
                         {
                             result.ElementsFailed++;
-                            logger.LogSkip(element.Id, element.Category?.Name, "Failed to assign level parameter");
+                            logger.LogSkip(element.Id, element.Category?.Name, assignResult.SkipReason ?? SkipReasons.FailedToAssignParameter);
                         }
                         break;
 
                     case LevelBandPosition.NoBoundingBox:
                         result.ElementsSkippedNoBoundingBox++;
-                        logger.LogSkip(element.Id, element.Category?.Name, "No bounding box");
+                        logger.LogSkip(element.Id, element.Category?.Name, SkipReasons.NoBoundingBox);
                         break;
 
                     default:
                         // Element is above or below the band
                         result.ElementsSkippedOutsideBand++;
-                        logger.LogSkip(element.Id, element.Category?.Name, $"Position: {position}");
+                        var positionReason = position == LevelBandPosition.BelowBand
+                            ? SkipReasons.BelowBand
+                            : SkipReasons.AboveBand;
+                        logger.LogSkip(element.Id, element.Category?.Name, positionReason);
                         break;
                 }
             }
@@ -134,8 +144,8 @@ namespace COBIeManager.Shared.Services
         /// <param name="levelName">Level name to assign</param>
         /// <param name="parameterName">Parameter name (default: "ACG-4D-Level")</param>
         /// <param name="overwrite">Whether to overwrite existing values</param>
-        /// <returns>True if successful, false otherwise</returns>
-        public bool AssignLevelParameter(
+        /// <returns>ParameterAssignmentResult indicating success, skip, or failure with reason</returns>
+        public ParameterAssignmentResult AssignLevelParameter(
             Element element,
             string levelName,
             IProcessingLogger logger,
@@ -145,13 +155,13 @@ namespace COBIeManager.Shared.Services
             if (element == null)
             {
                 _logger.Warn("Cannot assign level parameter to null element");
-                return false;
+                return ParameterAssignmentResult.CreateFailure(-1, "Element is null");
             }
 
             if (string.IsNullOrWhiteSpace(levelName))
             {
                 _logger.Warn("Level name is null or empty");
-                return false;
+                return ParameterAssignmentResult.CreateFailure(element.Id.IntegerValue, "Level name is null or empty");
             }
 
             var parameter = element.LookupParameter(parameterName);
@@ -159,13 +169,13 @@ namespace COBIeManager.Shared.Services
             if (parameter == null)
             {
                 _logger.Debug($"Element {element.Id}: Parameter '{parameterName}' not found");
-                return false;
+                return ParameterAssignmentResult.CreateSkipped(element.Id.IntegerValue, SkipReasons.ParameterMissing);
             }
 
             if (parameter.IsReadOnly)
             {
                 _logger.Debug($"Element {element.Id}: Parameter '{parameterName}' is read-only");
-                return false;
+                return ParameterAssignmentResult.CreateSkipped(element.Id.IntegerValue, SkipReasons.ParameterReadOnly);
             }
 
             // Check if value exists and overwrite is disabled
@@ -175,7 +185,7 @@ namespace COBIeManager.Shared.Services
                 if (!string.IsNullOrWhiteSpace(currentValue))
                 {
                     _logger.Debug($"Element {element.Id}: Parameter '{parameterName}' has existing value '{currentValue}', overwrite disabled");
-                    return false;
+                    return ParameterAssignmentResult.CreateSkipped(element.Id.IntegerValue, SkipReasons.ExistingValueNoOverwrite);
                 }
             }
 
@@ -183,12 +193,12 @@ namespace COBIeManager.Shared.Services
             {
                 parameter.Set(levelName);
                 _logger.Debug($"Element {element.Id}: Successfully assigned level '{levelName}'");
-                return true;
+                return ParameterAssignmentResult.CreateSuccess(element.Id.IntegerValue);
             }
             catch (System.Exception ex)
             {
                 _logger.Error($"Element {element.Id}: Failed to assign level parameter '{parameterName}'", ex);
-                return false;
+                return ParameterAssignmentResult.CreateFailure(element.Id.IntegerValue, $"Exception: {ex.Message}");
             }
         }
 

@@ -7,6 +7,7 @@ using Autodesk.Revit.DB;
 using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Logging;
+using COBIeManager.Shared.Models;
 
 namespace COBIeManager.Shared.Services
 {
@@ -20,6 +21,8 @@ namespace COBIeManager.Shared.Services
         private readonly List<LogEntry> _skipEntries;
         private readonly List<LogEntry> _errorEntries;
         private readonly Dictionary<string, int> _skipReasonCounts;
+        private int _levelParametersFilled;
+        private int _roomParametersFilled;
 
         /// <summary>
         /// Creates a new processing logger
@@ -47,6 +50,24 @@ namespace COBIeManager.Shared.Services
             };
             _successEntries.Add(entry);
             _logger.Debug($"[SUCCESS] ID: {elementId}, Category: {category}, Details: {details}");
+        }
+
+        /// <summary>
+        /// Logs a level parameter that was successfully filled
+        /// </summary>
+        public void LogLevelParameterFilled(ElementId elementId, string category, string levelName)
+        {
+            _levelParametersFilled++;
+            LogSuccess(elementId, category, $"Assigned to level '{levelName}'");
+        }
+
+        /// <summary>
+        /// Logs room parameters that were successfully filled
+        /// </summary>
+        public void LogRoomParameterFilled(ElementId elementId, string category, string roomInfo)
+        {
+            _roomParametersFilled++;
+            LogSuccess(elementId, category, $"Assigned room info: {roomInfo}");
         }
 
         /// <summary>
@@ -110,13 +131,15 @@ namespace COBIeManager.Shared.Services
             {
                 TotalElementsScanned = TotalCount,
                 ElementsProcessed = SuccessCount,
-                SkippedNoLocation = GetSkipCount("No Location"),
-                SkippedNoRoomFound = GetSkipCount("No Room Found"),
-                SkippedNoBoundingBox = GetSkipCount("No bounding box"),
-                SkippedParameterMissing = GetSkipCount("Parameter missing"),
-                SkippedParameterReadOnly = GetSkipCount("Parameter read-only"),
-                SkippedNotInLevelBand = GetSkipCount("Position: BelowBand") + GetSkipCount("Position: AboveBand"),
-                SkippedValueExists = GetSkipCount("Existing value, overwrite disabled"),
+                LevelParametersFilled = _levelParametersFilled,
+                RoomParametersFilled = _roomParametersFilled,
+                SkippedNoLocation = GetSkipCount(SkipReasons.NoLocation),
+                SkippedNoRoomFound = GetSkipCount(SkipReasons.NoRoomFound),
+                SkippedNoBoundingBox = GetSkipCount(SkipReasons.NoBoundingBox),
+                SkippedParameterMissing = GetSkipCount(SkipReasons.ParameterMissing),
+                SkippedParameterReadOnly = GetSkipCount(SkipReasons.ParameterReadOnly),
+                SkippedNotInLevelBand = GetSkipCount(SkipReasons.BelowBand) + GetSkipCount(SkipReasons.AboveBand),
+                SkippedValueExists = GetSkipCount(SkipReasons.ExistingValueNoOverwrite),
                 SkippedElementIds = new Dictionary<string, List<int>>()
             };
 
@@ -138,6 +161,8 @@ namespace COBIeManager.Shared.Services
             _skipEntries.Clear();
             _errorEntries.Clear();
             _skipReasonCounts.Clear();
+            _levelParametersFilled = 0;
+            _roomParametersFilled = 0;
             _logger.Info("Processing logger reset");
         }
 

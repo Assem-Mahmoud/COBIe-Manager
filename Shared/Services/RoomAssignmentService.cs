@@ -5,6 +5,7 @@ using Autodesk.Revit.DB.Architecture;
 using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Logging;
+using COBIeManager.Shared.Models;
 
 namespace COBIeManager.Shared.Services
 {
@@ -130,14 +131,12 @@ namespace COBIeManager.Shared.Services
             if (TrySetParameter(element, roomNumberParam, room.Number, overwrite))
             {
                 parametersAssigned++;
-                logger.LogSuccess(element.Id, element.Category?.Name, $"Assigned room number '{room.Number}'");
             }
 
             // Assign room name
             if (TrySetParameter(element, roomNameParam, room.Name, overwrite))
             {
                 parametersAssigned++;
-                logger.LogSuccess(element.Id, element.Category?.Name, $"Assigned room name '{room.Name}'");
             }
 
             // Assign room reference (combined number and name)
@@ -145,7 +144,12 @@ namespace COBIeManager.Shared.Services
             if (TrySetParameter(element, roomRefParam, roomRef, overwrite))
             {
                 parametersAssigned++;
-                logger.LogSuccess(element.Id, element.Category?.Name, $"Assigned room reference '{roomRef}'");
+            }
+
+            // Log the overall room parameter assignment
+            if (parametersAssigned > 0)
+            {
+                logger.LogRoomParameterFilled(element.Id, element.Category?.Name, roomRef);
             }
 
             return parametersAssigned;
