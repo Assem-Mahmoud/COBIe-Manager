@@ -79,6 +79,16 @@ namespace COBIeManager
                 PushButton cobieParamsButton = panel.AddItem(cobieParamsButtonData) as PushButton;
                 cobieParamsButton.ToolTip = "Manage COBie parameters from Autodesk Platform Services";
 
+                // Auto-Fill Parameters button
+                PushButtonData fillParamsButtonData = new PushButtonData(
+                    "ParameterFillBtn",
+                    "Auto-Fill Parameters",
+                    assemblyPath,
+                    "COBIeManager.Features.ParameterFiller.Commands.ParameterFillCommand");
+
+                PushButton fillParamsButton = panel.AddItem(fillParamsButtonData) as PushButton;
+                fillParamsButton.ToolTip = "Auto-fill level and room parameters on model elements";
+
                 return Result.Succeeded;
             }
             catch (Exception ex)
@@ -182,6 +192,36 @@ namespace COBIeManager
 
                 logger.Info("Registering IParameterConflictService singleton...");
                 services.RegisterSingleton<IParameterConflictService>(new Shared.Services.ParameterConflictService());
+
+                // ParameterFiller services
+                logger.Info("Registering ILevelAssignmentService singleton...");
+                services.RegisterSingleton<ILevelAssignmentService>(new LevelAssignmentService(logger));
+
+                logger.Info("Registering IRoomAssignmentService singleton...");
+                services.AddSingleton<IRoomAssignmentService>(sp =>
+                {
+                    var docLogger = sp.GetService<ILogger>();
+                    return new RoomAssignmentService(docLogger);
+                });
+
+                logger.Info("Registering IParameterFillService singleton...");
+                services.AddSingleton<IParameterFillService>(sp =>
+                {
+                    var levelService = sp.GetService<ILevelAssignmentService>();
+                    var roomService = sp.GetService<IRoomAssignmentService>();
+                    if (levelService == null)
+                        throw new InvalidOperationException("Failed to resolve ILevelAssignmentService during IParameterFillService registration");
+                    if (roomService == null)
+                        throw new InvalidOperationException("Failed to resolve IRoomAssignmentService during IParameterFillService registration");
+                    return new ParameterFillService(logger, levelService, roomService);
+                });
+
+                logger.Info("Registering IProcessingLogger singleton...");
+                services.AddSingleton<IProcessingLogger>(sp =>
+                {
+                    var spLogger = sp.GetService<ILogger>();
+                    return new ProcessingLogger(spLogger);
+                });
 
                 logger.Info("Building service provider...");
                 var serviceProvider = services.BuildServiceProvider();

@@ -15,12 +15,10 @@ namespace COBIeManager.Shared.Services
     public class RoomAssignmentService : IRoomAssignmentService
     {
         private readonly ILogger _logger;
-        private readonly Document _document;
 
-        public RoomAssignmentService(ILogger logger, Document document)
+        public RoomAssignmentService(ILogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _document = document ?? throw new ArgumentNullException(nameof(document));
         }
 
         /// <summary>
@@ -36,6 +34,8 @@ namespace COBIeManager.Shared.Services
                 _logger.Warn("Cannot find room for null element");
                 return null;
             }
+
+            var document = element.Document;
 
             // Try direct Room property first (most reliable)
             if (detectionMethod == RoomDetectionMethod.DirectRoomProperty ||
@@ -79,7 +79,7 @@ namespace COBIeManager.Shared.Services
                 if (point != null)
                 {
                
-                    var room = _document.GetRoomAtPoint(point);
+                    var room = document.GetRoomAtPoint(point);
                     if (room != null)
                     {
                         _logger.Debug($"Element {element.Id}: Room found via GetRoomAtPoint - '{room.Number}: {room.Name}'");
