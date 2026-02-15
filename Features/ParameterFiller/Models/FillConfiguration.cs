@@ -41,14 +41,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
         {
             return new FillConfiguration
             {
-                SelectedCategories = new List<BuiltInCategory>
-                {
-                    BuiltInCategory.OST_Doors,
-                    BuiltInCategory.OST_Windows,
-                    BuiltInCategory.OST_Furniture,
-                    BuiltInCategory.OST_MechanicalEquipment,
-                    BuiltInCategory.OST_GenericModel
-                },
+                SelectedCategories = new List<BuiltInCategory>(),
                 OverwriteExisting = false,
                 ParameterMapping = new ParameterMapping()
             };

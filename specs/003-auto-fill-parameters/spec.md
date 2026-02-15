@@ -95,6 +95,25 @@ A Revit user wants to choose which element categories to process, allowing selec
 
 ---
 
+### User Story 5 - Fill Parameters by Group (Priority: P2)
+
+A Revit user needs to automatically assign group identification information to elements based on their GroupId parameter value, filling the ACG-BOXId parameter with the corresponding group name.
+
+**Why this priority**: Group-based parameter filling is essential for tracking elements that belong to specific assembly groups (e.g., prefabricated units, equipment clusters) for facilities management and COBie data exchange.
+
+**Independent Test**: Can be fully tested by having elements with GroupId parameter values set and verifying that the ACG-BOXId parameter is correctly filled with the group name for those elements.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Revit document with elements that have a GroupId parameter containing a group identifier value, **When** the user selects the "Fill by Group" option and executes the command, **Then** all elements with a non-empty GroupId parameter receive the corresponding group name in their ACG-BOXId parameter
+2. **Given** an element with a GroupId parameter containing value "GRP-001", **When** processing occurs, **Then** the system looks up the group name associated with "GRP-001" and assigns it to the element's ACG-BOXId parameter
+3. **Given** an element with an empty or null GroupId parameter, **When** processing occurs, **Then** the element is skipped and logged with an informational message
+4. **Given** an element with a GroupId value that does not match any known group, **When** processing occurs, **Then** the element is skipped and logged with a warning message
+5. **Given** elements with existing ACG-BOXId parameter values, **When** overwrite option is disabled, **Then** only elements with empty ACG-BOXId parameters are updated
+6. **Given** elements with existing ACG-BOXId parameter values, **When** overwrite option is enabled, **Then** all elements with valid GroupId values receive the group name regardless of existing ACG-BOXId values
+
+---
+
 ### Edge Cases
 
 - What happens when an element's bounding box is null or invalid? → Skip with warning log
@@ -105,6 +124,8 @@ A Revit user wants to choose which element categories to process, allowing selec
 - What happens when an element belongs to a different phase than the rooms? → Use the document's active phase for all room lookups (element's phase is ignored)
 - What happens when processing is interrupted (document closed, Revit shutdown)? → Transaction should roll back, no partial changes committed
 - What happens when there are no rooms in the model? → Level assignment proceeds, room assignment is skipped with informational log
+- What happens when an element's GroupId parameter value doesn't match any known group? → Skip that element and log warning with the GroupId value
+- What happens when an element doesn't have a GroupId parameter? → Skip that element for group filling, continue processing other elements
 
 ## Requirements *(mandatory)*
 
@@ -126,14 +147,22 @@ A Revit user wants to choose which element categories to process, allowing selec
 - **FR-014**: System MUST allow user to select which element categories to process
 - **FR-015**: System MUST use a single transaction for processing to ensure atomicity or transaction group for large models with periodic commits
 - **FR-016**: System MUST support the following parameter names as defaults (configurable): "ACG-4D-Level", "ACG-4D-RoomNumber", "ACG-4D-RoomName", "ACG-4D-RoomRef"
+- **FR-017**: System MUST allow user to select "Fill by Group" mode to fill ACG-BOXId parameter based on element GroupId parameter values
+- **FR-018**: System MUST read the GroupId parameter value from each element to determine group membership
+- **FR-019**: System MUST skip elements that have an empty or null GroupId parameter value
+- **FR-020**: System MUST look up the group name corresponding to each element's GroupId parameter value
+- **FR-021**: System MUST assign the group name to the ACG-BOXId parameter for elements with valid GroupId values
+- **FR-022**: System MUST skip elements whose GroupId value does not match any known group and log a warning
+- **FR-023**: System MUST respect the overwrite option when filling ACG-BOXId parameter (preserve existing values when overwrite is disabled)
 
 ### Key Entities
 
 - **Level Assignment Rule**: Defines how elements are matched to levels based on their vertical position (bounding box intersection with level band)
 - **Room Assignment Result**: Contains the found room (if any) and the method used to determine it (direct property, point-in-room test, etc.)
+- **Group Assignment Result**: Contains the group name derived from an element's GroupId parameter value
 - **Processing Summary**: Aggregate counts and statistics for the operation including total processed, successful assignments, skips by reason
 - **Element Category**: Revit element categories eligible for processing (Doors, Windows, Furniture, Mechanical Equipment, Generic Models)
-- **Parameter Configuration**: Mapping of logical parameter names (Level, RoomNumber, RoomName, RoomRef) to actual Revit parameter names
+- **Parameter Configuration**: Mapping of logical parameter names (Level, RoomNumber, RoomName, RoomRef, GroupId, BOXId) to actual Revit parameter names
 
 ## Success Criteria *(mandatory)*
 
@@ -147,3 +176,5 @@ A Revit user wants to choose which element categories to process, allowing selec
 - **SC-006**: All skipped elements are logged with specific reasons enabling user investigation and correction
 - **SC-007**: The feature works on models with up to 10,000 processable elements without performance degradation
 - **SC-008**: Users report a 90% reduction in time spent manually entering level and room parameters compared to previous workflow
+- **SC-009**: 100% of elements with valid GroupId parameter values successfully receive the correct group name in their ACG-BOXId parameter
+- **SC-010**: Elements without GroupId values are correctly identified and skipped with appropriate logging

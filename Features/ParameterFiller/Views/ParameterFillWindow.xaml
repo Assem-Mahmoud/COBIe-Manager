@@ -1,0 +1,333 @@
+<Window
+    x:Class="COBIeManager.Features.ParameterFiller.Views.ParameterFillWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:COBIeManager.Shared.Controls"
+    xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
+    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:viewModels="clr-namespace:COBIeManager.Features.ParameterFiller.ViewModels"
+    Title="Auto-Fill Parameters"
+    Width="650"
+    Height="750"
+    Background="Transparent"
+    FontFamily="{DynamicResource MaterialDesignFont}"
+    ResizeMode="CanResize"
+    WindowStartupLocation="CenterOwner"
+    WindowStyle="SingleBorderWindow">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/COBIeManager;component/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+
+
+            <!--  Modern ComboBox Style  -->
+            <Style
+                x:Key="ModernComboBox"
+                BasedOn="{StaticResource MaterialDesignOutlinedComboBox}"
+                TargetType="ComboBox">
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="MinHeight" Value="40" />
+                <Setter Property="FontSize" Value="14" />
+            </Style>
+
+            <!--  Category CheckBox Style  -->
+            <Style x:Key="CategoryCheckBox" TargetType="CheckBox">
+                <Setter Property="Margin" Value="8,4" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <!--  Main Content  -->
+        <Border
+            materialDesign:ShadowAssist.Darken="True"
+            Background="#f1f1f1"
+            BorderThickness="1"
+            ClipToBounds="True"
+            CornerRadius="5"
+            SnapsToDevicePixels="True">
+            <Grid Margin="24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  Header Card  -->
+                <materialDesign:Card
+                    Grid.Row="0"
+                    Margin="0,0,0,16"
+                    Style="{StaticResource ModernCard}">
+                    <StackPanel Margin="16,12">
+                        <TextBlock
+                            FontSize="20"
+                            Style="{StaticResource SectionHeader}"
+                            Text="Auto-Fill Parameters" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="13"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Text="Automatically fill level and room parameters on model elements" />
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!--  Level Selection Card  -->
+                <materialDesign:Card
+                    Grid.Row="1"
+                    Margin="0,0,0,16"
+                    Style="{StaticResource ModernCard}">
+                    <Grid Margin="16,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--  Base Level  -->
+                        <StackPanel Grid.Column="0">
+                            <TextBlock
+                                Margin="0,0,0,8"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Text="Base Level" />
+                            <ComboBox
+                                materialDesign:HintAssist.Hint="Select base level"
+                                DisplayMemberPath="Name"
+                                ItemsSource="{Binding Levels}"
+                                SelectedItem="{Binding Config.BaseLevel, Mode=TwoWay}"
+                                Style="{StaticResource ModernComboBox}" />
+                        </StackPanel>
+
+                        <!--  Arrow Icon  -->
+                        <materialDesign:PackIcon
+                            Grid.Column="1"
+                            Width="24"
+                            Height="24"
+                            Margin="0,0,0,0"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource PrimaryBrush}"
+                            Kind="ArrowRight" />
+
+                        <!--  Top Level  -->
+                        <StackPanel Grid.Column="2">
+                            <TextBlock
+                                Margin="0,0,0,8"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Text="Top Level" />
+                            <ComboBox
+                                materialDesign:HintAssist.Hint="Select top level"
+                                DisplayMemberPath="Name"
+                                ItemsSource="{Binding Levels}"
+                                SelectedItem="{Binding Config.TopLevel, Mode=TwoWay}"
+                                Style="{StaticResource ModernComboBox}" />
+                        </StackPanel>
+                    </Grid>
+                </materialDesign:Card>
+
+                <!--  Options Card  -->
+                <materialDesign:Card
+                    Grid.Row="2"
+                    Margin="0,0,0,16"
+                    Style="{StaticResource ModernCard}">
+                    <StackPanel Margin="16,12">
+                        <TextBlock
+                            Margin="0,0,0,8"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Options" />
+
+                        <!--  Overwrite Existing CheckBox  -->
+                        <CheckBox
+                            Margin="0,4,0,0"
+                            Content="Overwrite existing parameter values"
+                            IsChecked="{Binding Config.OverwriteExisting, Mode=TwoWay}"
+                            ToolTip="When enabled, existing parameter values will be overwritten. When disabled, only empty parameters will be filled." />
+
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="12"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Text="When disabled, only parameters with empty values will be filled." />
+                    </StackPanel>
+                </materialDesign:Card>
+
+
+
+                <!--  Preview Summary Card  -->
+                <materialDesign:Card
+                    Grid.Row="4"
+                    Margin="0,0,0,16"
+                    Padding="16,12"
+                    Style="{StaticResource ModernCard}"
+                    Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock
+                            Margin="0,0,0,8"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Preview Summary" />
+
+                        <Border
+                            Margin="0,0,0,8"
+                            Padding="12,8"
+                            Background="#E3F2FD"
+                            BorderBrush="#2196F3"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock
+                                    FontSize="24"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource PrimaryBrush}"
+                                    Text="{Binding PreviewSummary.EstimatedElementsToProcess}" />
+                                <TextBlock
+                                    FontSize="14"
+                                    Foreground="{StaticResource SecondaryTextBrush}"
+                                    Text="estimated elements to process" />
+                            </StackPanel>
+                        </Border>
+
+                        <!--  Validation Warnings  -->
+                        <ItemsControl
+                            Margin="0,0,0,8"
+                            ItemsSource="{Binding PreviewSummary.ValidationWarnings}"
+                            Visibility="{Binding PreviewSummary.HasValidationWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border
+                                        Margin="0,4,0,0"
+                                        Padding="8,6"
+                                        Background="#FFF3CD"
+                                        BorderBrush="#FFB74D"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                        <StackPanel Orientation="Horizontal">
+                                            <materialDesign:PackIcon
+                                                Width="16"
+                                                Height="16"
+                                                Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Foreground="#D32F2F"
+                                                Kind="Alert" />
+                                            <TextBlock
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="13"
+                                                Foreground="#D32F2F"
+                                                Text="{Binding}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!--  Empty Categories Warning  -->
+                        <ItemsControl ItemsSource="{Binding PreviewSummary.CategoriesWithNoElements}" Visibility="{Binding PreviewSummary.HasEmptyCategories, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                        Text="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!--  Footer with Status and Action Buttons  -->
+                <Grid Grid.Row="5" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Status Message  -->
+                    <Border
+                        Grid.Column="0"
+                        Margin="0"
+                        Padding="12"
+                        Style="{StaticResource InfoCard}"
+                        Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon
+                                Width="20"
+                                Height="20"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource InfoBrush}"
+                                Kind="Information" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="{StaticResource PrimaryTextBrush}"
+                                Text="{Binding StatusMessage}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <!--  Action Buttons  -->
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="16,0,0,0"
+                        Orientation="Horizontal">
+                        <Button
+                            Width="120"
+                            Height="40"
+                            Margin="0"
+                            Padding="16,8"
+                            Command="{Binding PreviewCommand}"
+                            IsEnabled="{Binding CanExecutePreview}"
+                            Style="{StaticResource MaterialDesignOutlinedButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0"
+                                    VerticalAlignment="Center"
+                                    Kind="Eye" />
+                                <TextBlock
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="Preview" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            Width="120"
+                            Height="40"
+                            Margin="8,0,0,0"
+                            Padding="16,8"
+                            Command="{Binding FillCommand}"                          
+                            Style="{StaticResource PrimaryActionButton}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="18"
+                                    Height="18"
+                                    Margin="0"
+                                    VerticalAlignment="Center"
+                                    Kind="Check" />
+                                <TextBlock
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Text="Apply" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+
+</Window>

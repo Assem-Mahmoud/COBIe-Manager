@@ -61,19 +61,19 @@
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement ParameterFillService in Shared/Services/ParameterFillService.cs with PreviewFill() method (depends on T005, T008, T010)
-- [ ] T015 [US1] Implement ParameterFillService.ExecuteFill() method with transaction handling and progress callback (depends on T005, T006, T008, T010, T014)
-- [ ] T016 [US1] Create ParameterFillViewModel in Features/ParameterFiller/ViewModels/ParameterFillViewModel.cs with ObservableProperties for config and preview summary
-- [ ] T017 [US1] Add PreviewCommand and ExecuteFillCommand RelayCommand properties to ParameterFillViewModel
-- [ ] T018 [US1] Create ParameterFillWindow.xaml in Features/ParameterFiller/Views/ with level selection ComboBoxes, category selection CheckBoxes, overwrite CheckBox, Preview/Apply buttons
-- [ ] T019 [US1] Create ParameterFillWindow.xaml.cs code-behind with ViewModel initialization in constructor AFTER InitializeComponent()
-- [ ] T020 [US1] Wire up Preview button to show preview summary in MessageBox
-- [ ] T021 [US1] Wire up Apply button to execute ParameterFillService.ExecuteFill() and display results
-- [ ] T022 [US1] Add validation for BaseLevel < TopLevel elevation requirement with error display
-- [ ] T023 [US1] Create ParameterFillCommand in Features/ParameterFiller/Commands/ParameterFillCommand.cs with RevitTask.Initialize() and async window launch
-- [ ] T024 [US1] Register ParameterFillCommand ribbon button in App.cs OnStartup() with tooltip "Auto-fill level and room parameters"
-- [ ] T025 [US1] Register services in App.cs: ILevelAssignmentService, IRoomAssignmentService, IParameterFillService, IProcessingLogger
-- [ ] T026 [US1] Add assembly resolver setup to ParameterFillCommand (copy from CobieParametersCommand pattern)
+- [X] T014 [US1] Implement ParameterFillService in Shared/Services/ParameterFillService.cs with PreviewFill() method (depends on T005, T008, T010)
+- [X] T015 [US1] Implement ParameterFillService.ExecuteFill() method with transaction handling and progress callback (depends on T005, T006, T008, T010, T014)
+- [X] T016 [US1] Create ParameterFillViewModel in Features/ParameterFiller/ViewModels/ParameterFillViewModel.cs with ObservableProperties for config and preview summary
+- [X] T017 [US1] Add PreviewCommand and ExecuteFillCommand RelayCommand properties to ParameterFillViewModel
+- [X] T018 [US1] Create ParameterFillWindow.xaml in Features/ParameterFiller/Views/ with level selection ComboBoxes, category selection CheckBoxes, overwrite CheckBox, Preview/Apply buttons
+- [X] T019 [US1] Create ParameterFillWindow.xaml.cs code-behind with ViewModel initialization in constructor AFTER InitializeComponent()
+- [X] T020 [US1] Wire up Preview button to show preview summary in MessageBox
+- [X] T021 [US1] Wire up Apply button to execute ParameterFillService.ExecuteFill() and display results
+- [X] T022 [US1] Add validation for BaseLevel < TopLevel elevation requirement with error display
+- [X] T023 [US1] Create ParameterFillCommand in Features/ParameterFiller/Commands/ParameterFillCommand.cs with RevitTask.Initialize() and async window launch
+- [X] T024 [US1] Register ParameterFillCommand ribbon button in App.cs OnStartup() with tooltip "Auto-fill level and room parameters"
+- [X] T025 [US1] Register services in App.cs: ILevelAssignmentService, IRoomAssignmentService, IParameterFillService, IProcessingLogger
+- [X] T026 [US1] Add assembly resolver setup to ParameterFillCommand (copy from CobieParametersCommand pattern)
 
 **Checkpoint**: User Story 1 (Level Range Fill) should be fully functional and independently testable
 
