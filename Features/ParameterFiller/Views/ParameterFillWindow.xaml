@@ -7,8 +7,10 @@
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:viewModels="clr-namespace:COBIeManager.Features.ParameterFiller.ViewModels"
     Title="Auto-Fill Parameters"
-    Width="650"
-    Height="750"
+    Width="1200"
+    Height="800"
+    MinWidth="1100"
+    MinHeight="600"
     Background="Transparent"
     FontFamily="{DynamicResource MaterialDesignFont}"
     ResizeMode="CanResize"
@@ -21,25 +23,39 @@
                 <ResourceDictionary Source="/COBIeManager;component/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-
-            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
-
+            <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+            <converters:FlagsToBooleanConverter x:Key="FlagsToBooleanConverter" />
 
             <!--  Modern ComboBox Style  -->
             <Style
                 x:Key="ModernComboBox"
                 BasedOn="{StaticResource MaterialDesignOutlinedComboBox}"
                 TargetType="ComboBox">
-                <Setter Property="Padding" Value="12,8" />
-                <Setter Property="MinHeight" Value="40" />
-                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Padding" Value="10,6" />
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="FontSize" Value="13" />
             </Style>
 
             <!--  Category CheckBox Style  -->
             <Style x:Key="CategoryCheckBox" TargetType="CheckBox">
-                <Setter Property="Margin" Value="8,4" />
+                <Setter Property="Margin" Value="4,2" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+
+            <!--  Section Card Style  -->
+            <Style x:Key="SectionCard" BasedOn="{StaticResource ModernCard}" TargetType="materialDesign:Card">
+                <Setter Property="Padding" Value="0" />
+            </Style>
+
+            <!--  Section Header Style  -->
+            <Style x:Key="SectionHeader" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+                <Setter Property="Margin" Value="0,0,0,8" />
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -48,207 +64,713 @@
         <!--  Main Content  -->
         <Border
             materialDesign:ShadowAssist.Darken="True"
-            Background="#f1f1f1"
+            Background="#f5f5f5"
             BorderThickness="1"
             ClipToBounds="True"
-            CornerRadius="5"
+            CornerRadius="6"
             SnapsToDevicePixels="True">
-            <Grid Margin="24">
+            <Grid Margin="16">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!--  Header Card  -->
+                <!--  Header  -->
                 <materialDesign:Card
                     Grid.Row="0"
-                    Margin="0,0,0,16"
-                    Style="{StaticResource ModernCard}">
-                    <StackPanel Margin="16,12">
-                        <TextBlock
-                            FontSize="20"
-                            Style="{StaticResource SectionHeader}"
-                            Text="Auto-Fill Parameters" />
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            FontSize="13"
-                            Foreground="{StaticResource SecondaryTextBrush}"
-                            Text="Automatically fill level and room parameters on model elements" />
-                    </StackPanel>
-                </materialDesign:Card>
-
-                <!--  Level Selection Card  -->
-                <materialDesign:Card
-                    Grid.Row="1"
-                    Margin="0,0,0,16"
-                    Style="{StaticResource ModernCard}">
-                    <Grid Margin="16,12">
+                    Margin="0,0,0,12"
+                    Style="{StaticResource SectionCard}">
+                    <Grid Margin="16,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!--  Base Level  -->
                         <StackPanel Grid.Column="0">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Auto-Fill Parameters" />
                             <TextBlock
-                                Margin="0,0,0,8"
-                                FontSize="14"
-                                FontWeight="SemiBold"
-                                Text="Base Level" />
-                            <ComboBox
-                                materialDesign:HintAssist.Hint="Select base level"
-                                DisplayMemberPath="Name"
-                                ItemsSource="{Binding Levels}"
-                                SelectedItem="{Binding Config.BaseLevel, Mode=TwoWay}"
-                                Style="{StaticResource ModernComboBox}" />
+                                Margin="0,2,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource SecondaryTextBrush}"
+                                Text="Automatically fill level, room, and box parameters on model elements" />
                         </StackPanel>
-
-                        <!--  Arrow Icon  -->
-                        <materialDesign:PackIcon
-                            Grid.Column="1"
-                            Width="24"
-                            Height="24"
-                            Margin="0,0,0,0"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource PrimaryBrush}"
-                            Kind="ArrowRight" />
-
-                        <!--  Top Level  -->
-                        <StackPanel Grid.Column="2">
-                            <TextBlock
-                                Margin="0,0,0,8"
-                                FontSize="14"
-                                FontWeight="SemiBold"
-                                Text="Top Level" />
-                            <ComboBox
-                                materialDesign:HintAssist.Hint="Select top level"
-                                DisplayMemberPath="Name"
-                                ItemsSource="{Binding Levels}"
-                                SelectedItem="{Binding Config.TopLevel, Mode=TwoWay}"
-                                Style="{StaticResource ModernComboBox}" />
-                        </StackPanel>
+                     
                     </Grid>
                 </materialDesign:Card>
 
-                <!--  Options Card  -->
-                <materialDesign:Card
-                    Grid.Row="2"
-                    Margin="0,0,0,16"
-                    Style="{StaticResource ModernCard}">
-                    <StackPanel Margin="16,12">
-                        <TextBlock
-                            Margin="0,0,0,8"
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            Text="Options" />
+                <!--  Main Content - 4 Columns  -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-                        <!--  Overwrite Existing CheckBox  -->
-                        <CheckBox
-                            Margin="0,4,0,0"
-                            Content="Overwrite existing parameter values"
-                            IsChecked="{Binding Config.OverwriteExisting, Mode=TwoWay}"
-                            ToolTip="When enabled, existing parameter values will be overwritten. When disabled, only empty parameters will be filled." />
+                    <!--  Column 1: Categories  -->
+                    <materialDesign:Card Grid.Column="0" Style="{StaticResource SectionCard}">
+                        <Grid Margin="12,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
 
-                        <TextBlock
-                            Margin="0,8,0,0"
-                            FontSize="12"
-                            Foreground="{StaticResource SecondaryTextBrush}"
-                            Text="When disabled, only parameters with empty values will be filled." />
-                    </StackPanel>
-                </materialDesign:Card>
+                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Categories" />
 
+                            <!--  Search Box  -->
+                            <Border
+                                Grid.Row="1"
+                                Margin="0,0,0,8"
+                                Padding="8,6"
+                                Background="White"
+                                BorderBrush="#E0E0E0"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                                <Grid>
+                                    <TextBlock
+                                        Margin="8,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#9E9E9E"
+                                        IsHitTestVisible="False"
+                                        Text="Search categories..."
+                                        Visibility="{Binding CategorySearchText, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                    <TextBox
+                                        Padding="8,4"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="{Binding CategorySearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="Type to filter categories" />
+                                </Grid>
+                            </Border>
 
-
-                <!--  Preview Summary Card  -->
-                <materialDesign:Card
-                    Grid.Row="4"
-                    Margin="0,0,0,16"
-                    Padding="16,12"
-                    Style="{StaticResource ModernCard}"
-                    Visibility="{Binding HasPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <StackPanel>
-                        <TextBlock
-                            Margin="0,0,0,8"
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            Text="Preview Summary" />
-
-                        <Border
-                            Margin="0,0,0,8"
-                            Padding="12,8"
-                            Background="#E3F2FD"
-                            BorderBrush="#2196F3"
-                            BorderThickness="1"
-                            CornerRadius="4">
-                            <StackPanel>
+                            <StackPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
+                                <Button
+                                    Width="60"
+                                    Height="26"
+                                    Margin="0"
+                                    Padding="6,2"
+                                    Command="{Binding SelectAllCategoriesCommand}"
+                                    FontSize="10"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}">
+                                    All
+                                </Button>
+                                <Button
+                                    Width="60"
+                                    Height="26"
+                                    Margin="4,0,0,0"
+                                    Padding="6,2"
+                                    Command="{Binding DeselectAllCategoriesCommand}"
+                                    FontSize="10"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}">
+                                    None
+                                </Button>
                                 <TextBlock
-                                    FontSize="24"
-                                    FontWeight="Bold"
-                                    Foreground="{StaticResource PrimaryBrush}"
-                                    Text="{Binding PreviewSummary.EstimatedElementsToProcess}" />
-                                <TextBlock
-                                    FontSize="14"
-                                    Foreground="{StaticResource SecondaryTextBrush}"
-                                    Text="estimated elements to process" />
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource SecondaryTextBrush}">
+                                    <Run Text="{Binding SelectedCategoryCount, Mode=OneWay}" />
+                                    <Run Text="/" />
+                                    <Run Text="{Binding TotalCategoryCount, Mode=OneWay}" />
+                                </TextBlock>
                             </StackPanel>
-                        </Border>
 
-                        <!--  Validation Warnings  -->
-                        <ItemsControl
-                            Margin="0,0,0,8"
-                            ItemsSource="{Binding PreviewSummary.ValidationWarnings}"
-                            Visibility="{Binding PreviewSummary.HasValidationWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border
-                                        Margin="0,4,0,0"
-                                        Padding="8,6"
-                                        Background="#FFF3CD"
-                                        BorderBrush="#FFB74D"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                        <StackPanel Orientation="Horizontal">
-                                            <materialDesign:PackIcon
-                                                Width="16"
-                                                Height="16"
-                                                Margin="0,0,8,0"
-                                                VerticalAlignment="Center"
-                                                Foreground="#D32F2F"
-                                                Kind="Alert" />
+                            <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding FilteredCategories}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Vertical" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox
+                                                Content="{Binding DisplayName}"
+                                                IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Style="{StaticResource CategoryCheckBox}">
+                                                <CheckBox.ToolTip>
+                                                    <ToolTip>
+                                                        <StackPanel>
+                                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                                            <TextBlock FontSize="10">
+                                                                <Run Text="Elements: " />
+                                                                <Run Text="{Binding ElementCount}" />
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </ToolTip>
+                                                </CheckBox.ToolTip>
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </materialDesign:Card>
+
+                    <!--  Column 2: Parameters  -->
+                    <materialDesign:Card Grid.Column="2" Style="{StaticResource SectionCard}">
+                        <Grid Margin="12,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource SectionHeader}"
+                                    Text="Parameters" />
+
+                                <Button
+                                    Grid.Column="1"
+                                    Width="32"
+                                    Height="28"
+                                    Margin="0,0,0,4"
+                                    Padding="0"
+                                    Command="{Binding OpenMappingDialogCommand}"
+                                    Style="{StaticResource MaterialDesignIconForegroundButton}"
+                                    ToolTip="Map selected parameters to fill modes">
+                                    <materialDesign:PackIcon
+                                        Width="16"
+                                        Height="16"
+                                        Foreground="{StaticResource PrimaryBrush}"
+                                        Kind="Tune" />
+                                </Button>
+                            </Grid>
+
+                            <!--  Search Box  -->
+                            <Border
+                                Grid.Row="1"
+                                Margin="0,0,0,8"
+                                Padding="8,6"
+                                Background="White"
+                                BorderBrush="#E0E0E0"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                                <Grid>
+                                    <TextBlock
+                                        Margin="8,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="#9E9E9E"
+                                        IsHitTestVisible="False"
+                                        Text="Search parameters..."
+                                        Visibility="{Binding ParameterSearchText, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                    <TextBox
+                                        Padding="8,4"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="{Binding ParameterSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="Type to filter parameters" />
+                                </Grid>
+                            </Border>
+
+                            <StackPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
+                                <Button
+                                    Width="60"
+                                    Height="26"
+                                    Margin="0"
+                                    Padding="6,2"
+                                    Command="{Binding SelectAllParametersCommand}"
+                                    FontSize="10"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}">
+                                    All
+                                </Button>
+                                <Button
+                                    Width="60"
+                                    Height="26"
+                                    Margin="4,0,0,0"
+                                    Padding="6,2"
+                                    Command="{Binding DeselectAllParametersCommand}"
+                                    FontSize="10"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}">
+                                    None
+                                </Button>
+                                <TextBlock
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource SecondaryTextBrush}">
+                                    <Run Text="{Binding SelectedParameterCount, Mode=OneWay}" />
+                                    <Run Text="/" />
+                                    <Run Text="{Binding TotalParameterCount, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!--  Unmapped Parameters Warning  -->
+                            <Border
+                                Grid.Row="3"
+                                Margin="0,0,0,8"
+                                Padding="8,6"
+                                Background="#FFF3E0"
+                                BorderBrush="#FF9800"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Visibility="{Binding HasUnmappedParameters, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <materialDesign:PackIcon
+                                        Grid.Column="0"
+                                        Width="16"
+                                        Height="16"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center"
+                                        Foreground="#E65100"
+                                        Kind="Alert" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Foreground="#E65100"
+                                            Text="Unmapped parameters detected" />
+                                        <TextBlock
+                                            FontSize="10"
+                                            Foreground="#E65100"
+                                            Text="Click the gear icon to map selected parameters to fill modes" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!--  Parameters list - Single column with scrollbar  -->
+                            <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding FilteredParameters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Vertical" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox
+                                                Content="{Binding DisplayName}"
+                                                FontSize="12"
+                                                IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Style="{StaticResource CategoryCheckBox}">
+                                                <CheckBox.ToolTip>
+                                                    <ToolTip>
+                                                        <StackPanel>
+                                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                                            <TextBlock FontSize="10" Text="{Binding Description}" />
+                                                        </StackPanel>
+                                                    </ToolTip>
+                                                </CheckBox.ToolTip>
+                                            </CheckBox>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </materialDesign:Card>
+
+                    <!--  Column 3: Level & Options  -->
+                    <materialDesign:Card Grid.Column="4" Style="{StaticResource SectionCard}">
+                        <Grid Margin="12,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Configuration" />
+
+                            <!--  Level Selection  -->
+                            <Border
+                                Grid.Row="1"
+                                Margin="0,0,0,12"
+                                Padding="8,6"
+                                Background="White"
+                                BorderBrush="#E0E0E0"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                                <StackPanel>
+                                    <TextBlock FontSize="11" FontWeight="SemiBold" Text="Level Range" />
+
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
                                             <TextBlock
-                                                Margin="8,0,0,0"
-                                                VerticalAlignment="Center"
-                                                FontSize="13"
-                                                Foreground="#D32F2F"
-                                                Text="{Binding}" />
+                                                Margin="0,0,0,2"
+                                                FontSize="10"
+                                                Foreground="{StaticResource SecondaryTextBrush}"
+                                                Text="From" />
+                                            <ComboBox
+                                                DisplayMemberPath="Name"
+                                                FontSize="12"
+                                                ItemsSource="{Binding Levels}"
+                                                SelectedItem="{Binding Config.BaseLevel, Mode=TwoWay}"
+                                                        Style="{StaticResource ModernComboBox}" />
+                                        </StackPanel>
+
+                                        <materialDesign:PackIcon
+                                            Grid.Column="1"
+                                            Width="16"
+                                            Height="16"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Foreground="{StaticResource PrimaryBrush}"
+                                            Kind="ArrowRight" />
+
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock
+                                                Margin="0,0,0,2"
+                                                FontSize="10"
+                                                Foreground="{StaticResource SecondaryTextBrush}"
+                                                Text="To" />
+                                            <ComboBox
+                                                DisplayMemberPath="Name"
+                                                FontSize="12"
+                                                ItemsSource="{Binding Levels}"
+                                                SelectedItem="{Binding Config.TopLevel, Mode=TwoWay}"
+                                                        Style="{StaticResource ModernComboBox}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!--  Options  -->
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <!--  Overwrite Option  -->
+                                    <Border
+                                        Margin="0,0,0,8"
+                                        Padding="8,6"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <CheckBox
+                                            Content="Overwrite existing values"
+                                            FontSize="12"
+                                            IsChecked="{Binding Config.OverwriteExisting, Mode=TwoWay}"
+                                            ToolTip="When enabled, existing parameter values will be overwritten" />
+                                    </Border>
+
+                                    <!--  Fill Mode (Multi-select list)  -->
+                                    <Border
+                                        Padding="12,8"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock
+                                                    Grid.Column="0"
+                                                    FontSize="11"
+                                                    FontWeight="SemiBold"
+                                                    Text="Fill Mode"
+                                                    VerticalAlignment="Center" />
+
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    FontSize="10"
+                                                    Foreground="#757575"
+                                                    VerticalAlignment="Center">
+                                                    <Run Text="Selected:" />
+                                                    <Run FontWeight="SemiBold" Text="{Binding SelectedFillModeCount, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AvailableFillModes}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border
+                                                            Margin="0,0,0,4"
+                                                            Padding="8,6"
+                                                            Background="#F9F9F9"
+                                                            BorderBrush="#E0E0E0"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <CheckBox
+                                                                    Grid.Column="0"
+                                                                    VerticalAlignment="Center"
+                                                                    IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                    Style="{StaticResource MaterialDesignCheckBox}" />
+
+                                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                                    <TextBlock
+                                                                        FontSize="11"
+                                                                        FontWeight="SemiBold"
+                                                                        Text="{Binding DisplayName}" />
+                                                                    <TextBlock
+                                                                        FontSize="9"
+                                                                        Foreground="#757575"
+                                                                        Text="{Binding Description}"
+                                                                        TextTrimming="CharacterEllipsis" />
+                                                                </StackPanel>
+
+                                                                <materialDesign:PackIcon
+                                                                    Grid.Column="2"
+                                                                    Width="18"
+                                                                    Height="18"
+                                                                    VerticalAlignment="Center"
+                                                                    Foreground="#757575"
+                                                                    Kind="{Binding IconKind}"
+                                                                    ToolTip="{Binding MappedParameterCount, StringFormat={}{0} parameters mapped}" />
+
+                                                                <!--  Mapped Parameter Count Badge  -->
+                                                                <Border
+                                                                    Grid.Column="2"
+                                                                    Margin="0,0,24,0"
+                                                                    Padding="6,2"
+                                                                    Background="#E0E0E0"
+                                                                    CornerRadius="10"
+                                                                    Visibility="{Binding HasMappedParameters, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock
+                                                                        FontSize="9"
+                                                                        FontWeight="SemiBold"
+                                                                        Foreground="#424242"
+                                                                        Text="{Binding MappedParameterCount, StringFormat={}{0}}" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </StackPanel>
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
 
-                        <!--  Empty Categories Warning  -->
-                        <ItemsControl ItemsSource="{Binding PreviewSummary.CategoriesWithNoElements}" Visibility="{Binding PreviewSummary.HasEmptyCategories, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock
-                                        FontSize="12"
-                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                        Text="{Binding}" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </materialDesign:Card>
+                                    <!--  Preview Warnings (if any)  -->
+                                    <ItemsControl
+                                        Margin="0,8,0,0"
+                                        ItemsSource="{Binding PreviewSummary.ValidationWarnings}"
+                                        Visibility="{Binding PreviewSummary.HasValidationWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border
+                                                    Margin="0,0,0,4"
+                                                    Padding="8,4"
+                                                    Background="#FFF3E0"
+                                                    BorderBrush="#FF9800"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3">
+                                                    <TextBlock
+                                                        FontSize="10"
+                                                        Foreground="#E65100"
+                                                        Text="{Binding}"
+                                                        TextWrapping="Wrap" />
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </materialDesign:Card>
 
-                <!--  Footer with Status and Action Buttons  -->
-                <Grid Grid.Row="5" Margin="0,16,0,0">
+                    <!--  Column 4: Future Enhancements  -->
+                    <materialDesign:Card Grid.Column="6" Style="{StaticResource SectionCard}">
+                        <Grid Margin="12,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Advanced Options" />
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <!--  Filter Options Section  -->
+                                    <Border
+                                        Margin="0,0,0,8"
+                                        Padding="10,8"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Element Filters" />
+
+                                            <CheckBox
+                                                Margin="0,6,0,0"
+                                                Content="By room"
+                                                FontSize="11"
+                                                IsEnabled="False"
+                                                Opacity="0.6" />
+
+                                            <CheckBox
+                                                Margin="0,4,0,0"
+                                                Content="By phase"
+                                                FontSize="11"
+                                                IsEnabled="False"
+                                                Opacity="0.6" />
+
+                                            <CheckBox
+                                                Margin="0,4,0,0"
+                                                Content="By design option"
+                                                FontSize="11"
+                                                IsEnabled="False"
+                                                Opacity="0.6" />
+
+                                            <TextBlock
+                                                Margin="0,6,0,0"
+                                                FontSize="9"
+                                                FontStyle="Italic"
+                                                Foreground="#9E9E9E"
+                                                Text="Coming soon..." />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  Naming Convention Section  -->
+                                    <Border
+                                        Margin="0,0,0,8"
+                                        Padding="10,8"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Naming Convention" />
+
+                                            <CheckBox
+                                                Margin="0,6,0,0"
+                                                Content="Apply pattern"
+                                                FontSize="11"
+                                                IsEnabled="False"
+                                                Opacity="0.6" />
+
+                                            <Border
+                                                Margin="0,6,0,0"
+                                                Padding="6,4"
+                                                Background="#F5F5F5"
+                                                BorderBrush="#E0E0E0"
+                                                BorderThickness="1"
+                                                CornerRadius="2"
+                                                IsEnabled="False"
+                                                Opacity="0.6">
+                                                <TextBlock
+                                                    FontFamily="Consolas"
+                                                    FontSize="9"
+                                                    Foreground="#757575"
+                                                    Text="{Binding Config.ParameterMapping.LevelParameter}" />
+                                            </Border>
+
+                                            <TextBlock
+                                                Margin="0,4,0,0"
+                                                FontSize="9"
+                                                FontStyle="Italic"
+                                                Foreground="#9E9E9E"
+                                                Text="Coming soon..." />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  Batch Operations Section  -->
+                                    <Border
+                                        Margin="0,0,0,8"
+                                        Padding="10,8"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Batch Operations" />
+
+                                            <Button
+                                                Width="100"
+                                                Height="28"
+                                                Margin="0,6,0,0"
+                                                HorizontalAlignment="Left"
+                                                Content="Clear All"
+                                                FontSize="10"
+                                                IsEnabled="False"
+                                                Opacity="0.6"
+                                                Style="{StaticResource MaterialDesignOutlinedButton}" />
+
+                                            <Button
+                                                Width="100"
+                                                Height="28"
+                                                Margin="0,4,0,0"
+                                                HorizontalAlignment="Left"
+                                                Content="Export Config"
+                                                FontSize="10"
+                                                IsEnabled="False"
+                                                Opacity="0.6"
+                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
+
+                                            <TextBlock
+                                                Margin="0,4,0,0"
+                                                FontSize="9"
+                                                FontStyle="Italic"
+                                                Foreground="#9E9E9E"
+                                                Text="Coming soon..." />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  Quick Actions Section  -->
+                                    <Border
+                                        Padding="10,8"
+                                        Background="White"
+                                        BorderBrush="#E0E0E0"
+                                        BorderThickness="1"
+                                        CornerRadius="3">
+                                        <StackPanel>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Quick Actions" />
+
+                                            <Button
+                                                Width="100"
+                                                Height="28"
+                                                Margin="0,6,0,0"
+                                                HorizontalAlignment="Left"
+                                                Command="{Binding PreviewCommand}"
+                                                Content="Refresh Count"
+                                                FontSize="10"
+                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
+
+                                            <Button
+                                                Width="100"
+                                                Height="28"
+                                                Margin="0,4,0,0"
+                                                HorizontalAlignment="Left"
+                                                Content="Reset All"
+                                                FontSize="10"
+                                                IsEnabled="False"
+                                                Opacity="0.6"
+                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </materialDesign:Card>
+                </Grid>
+
+                <!--  Footer  -->
+                <Grid Grid.Row="2" Margin="0,12,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -257,70 +779,79 @@
                     <!--  Status Message  -->
                     <Border
                         Grid.Column="0"
-                        Margin="0"
-                        Padding="12"
+                        Padding="10,6"
                         Style="{StaticResource InfoCard}"
                         Visibility="{Binding StatusMessage, Converter={StaticResource StringToVisibilityConverter}}">
-                        <StackPanel Orientation="Horizontal">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
                             <materialDesign:PackIcon
-                                Width="20"
-                                Height="20"
+                                Grid.Column="0"
+                                Width="16"
+                                Height="16"
                                 Margin="0,0,8,0"
                                 VerticalAlignment="Center"
                                 Foreground="{StaticResource InfoBrush}"
                                 Kind="Information" />
+
                             <TextBlock
+                                Grid.Column="1"
                                 VerticalAlignment="Center"
-                                FontSize="13"
+                                FontSize="11"
                                 Foreground="{StaticResource PrimaryTextBrush}"
                                 Text="{Binding StatusMessage}"
                                 TextWrapping="Wrap" />
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!--  Action Buttons  -->
                     <StackPanel
                         Grid.Column="1"
-                        Margin="16,0,0,0"
+                        Margin="8,0,0,0"
                         Orientation="Horizontal">
                         <Button
-                            Width="120"
-                            Height="40"
+                            Width="90"
+                            Height="34"
                             Margin="0"
-                            Padding="16,8"
+                            Padding="12,6"
                             Command="{Binding PreviewCommand}"
                             IsEnabled="{Binding CanExecutePreview}"
                             Style="{StaticResource MaterialDesignOutlinedButton}">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon
-                                    Width="18"
-                                    Height="18"
+                                    Width="16"
+                                    Height="16"
                                     Margin="0"
                                     VerticalAlignment="Center"
                                     Kind="Eye" />
                                 <TextBlock
-                                    Margin="8,0,0,0"
+                                    Margin="6,0,0,0"
                                     VerticalAlignment="Center"
+                                    FontSize="12"
                                     Text="Preview" />
                             </StackPanel>
                         </Button>
                         <Button
-                            Width="120"
-                            Height="40"
-                            Margin="8,0,0,0"
-                            Padding="16,8"
-                            Command="{Binding FillCommand}"                          
+                            Width="90"
+                            Height="34"
+                            Margin="6,0,0,0"
+                            Padding="12,6"
+                            Command="{Binding FillCommand}"
                             Style="{StaticResource PrimaryActionButton}">
                             <StackPanel Orientation="Horizontal">
                                 <materialDesign:PackIcon
-                                    Width="18"
-                                    Height="18"
+                                    Width="16"
+                                    Height="16"
                                     Margin="0"
                                     VerticalAlignment="Center"
                                     Kind="Check" />
                                 <TextBlock
-                                    Margin="8,0,0,0"
+                                    Margin="6,0,0,0"
                                     VerticalAlignment="Center"
+                                    FontSize="12"
                                     Text="Apply" />
                             </StackPanel>
                         </Button>

@@ -81,20 +81,29 @@
 
 ## Phase 4: User Story 2 - Fill Parameters by Room Ownership (Priority: P2)
 
-**Goal**: Automatically assign room information (number, name) to elements based on room association
+**Goal**: Automatically assign room information (number, name) to elements based on room association using a new Room-Only fill mode
 
 **Independent Test**: Have elements placed in rooms and verify that room number and name parameters are correctly assigned based on room association
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Implement RoomAssignmentService.GetRoomForElement() with tiered strategy: Room property, FromRoom/ToRoom for doors, point-in-room fallback (depends on T006)
-- [ ] T028 [P] Create helper method GetElementPoint() in RoomAssignmentService to extract LocationPoint or LocationCurve midpoint
-- [ ] T029 [US2] Integrate room assignment into ParameterFillService.ExecuteFill() - call GetRoomForElement() and AssignRoomParameters() for each element (depends on T015, T027)
-- [ ] T030 [US2] Update ParameterFillViewModel to include room parameter configuration UI (checkboxes to enable/disable room parameter fills)
-- [ ] T031 [US2] Update ParameterFillWindow.xaml to include room parameter configuration controls
-- [ ] T032 [US2] Add room assignment statistics to ProcessingSummary display
+- [X] T027 [US2] Add RoomOnly value to FillMode enum in Shared/Models/FillMode.cs
+- [X] T028 [P] [US2] Create RoomFillPreviewSummary model in Shared/Models/RoomFillPreviewSummary.cs with EstimatedElementsToProcess, EstimatedRoomsFound, EstimatedNoRoomFound properties
+- [X] T029 [P] [US2] Create RoomFillSummary model in Shared/Models/RoomFillSummary.cs with TotalElementsScanned, ElementsUpdated, UniqueRoomsFound, skip counts, and processing duration
+- [X] T030 [US2] Create IRoomFillService interface in Shared/Interfaces/IRoomFillService.cs with PreviewFill() and ExecuteFill() methods
+- [X] T031 [US2] Implement RoomFillService in Shared/Services/RoomFillService.cs - automatically detects room for each element and fills room name (depends on T030, T006)
+- [X] T032 [US2] Update FillConfiguration.GetRoomModeParameters() method to return parameters mapped to RoomOnly mode
+- [X] T033 [US2] Update FillConfiguration.IsValid() to validate RoomOnly mode (requires categories + room-mode parameters, NO level selection)
+- [X] T034 [US2] Update FillConfiguration.GetValidationError() to include RoomOnly mode validation messages
+- [X] T035 [US2] Update ParameterFillService.PreviewFill() to handle RoomOnly mode - call RoomFillService.PreviewFill()
+- [X] T036 [US2] Update ParameterFillService.ExecuteFill() to handle RoomOnly mode - call RoomFillService.ExecuteFill()
+- [X] T037 [US2] Add IRoomFillService dependency injection to ParameterFillService constructor
+- [X] T038 [US2] Update ParameterMappingWindow.xaml ComboBox to include "Room Only" option (after Level Only and Group Only)
+- [X] T039 [P] [US2] Update ParameterMappingViewModel to add SetAllUnmappedToRoom() command
+- [X] T040 [US2] Update ParameterFillWindow.xaml to add "Room Only" RadioButton in Fill Mode section
+- [X] T041 [US2] Register IRoomFillService in App.cs InitializeDependencyInjection() as singleton
 
-**Checkpoint**: User Stories 1 AND 2 should both work independently
+**Checkpoint**: User Stories 1 AND 2 should both work independently. Users can now select "Room Only" fill mode to automatically fill elements with their associated room name.
 
 ---
 
@@ -233,12 +242,12 @@ With multiple developers:
 
 ## Summary
 
-**Total Task Count**: 55 tasks
+**Total Task Count**: 60 tasks (updated with Room-Only fill mode)
 **Tasks per User Story**:
 - Setup: 4 tasks
 - Foundational: 9 tasks
 - User Story 1 (P1): 13 tasks
-- User Story 2 (P2): 6 tasks
+- User Story 2 (P2): 15 tasks (updated with Room-Only fill mode implementation)
 - User Story 3 (P3): 6 tasks
 - User Story 4 (P4): 6 tasks
 - Polish: 11 tasks

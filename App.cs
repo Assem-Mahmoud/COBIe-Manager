@@ -204,16 +204,34 @@ namespace COBIeManager
                     return new RoomAssignmentService(docLogger);
                 });
 
+                logger.Info("Registering IBoxIdFillService singleton...");
+                services.RegisterSingleton<IBoxIdFillService>(new BoxIdFillService(logger));
+
+                logger.Info("Registering IRoomFillService singleton...");
+                services.AddSingleton<IRoomFillService>(sp =>
+                {
+                    var roomService = sp.GetService<IRoomAssignmentService>();
+                    if (roomService == null)
+                        throw new InvalidOperationException("Failed to resolve IRoomAssignmentService during IRoomFillService registration");
+                    return new RoomFillService(logger, roomService);
+                });
+
                 logger.Info("Registering IParameterFillService singleton...");
                 services.AddSingleton<IParameterFillService>(sp =>
                 {
                     var levelService = sp.GetService<ILevelAssignmentService>();
                     var roomService = sp.GetService<IRoomAssignmentService>();
+                    var boxIdService = sp.GetService<IBoxIdFillService>();
+                    var roomFillService = sp.GetService<IRoomFillService>();
                     if (levelService == null)
                         throw new InvalidOperationException("Failed to resolve ILevelAssignmentService during IParameterFillService registration");
                     if (roomService == null)
                         throw new InvalidOperationException("Failed to resolve IRoomAssignmentService during IParameterFillService registration");
-                    return new ParameterFillService(logger, levelService, roomService);
+                    if (boxIdService == null)
+                        throw new InvalidOperationException("Failed to resolve IBoxIdFillService during IParameterFillService registration");
+                    if (roomFillService == null)
+                        throw new InvalidOperationException("Failed to resolve IRoomFillService during IParameterFillService registration");
+                    return new ParameterFillService(logger, levelService, roomService, boxIdService, roomFillService);
                 });
 
                 logger.Info("Registering IProcessingLogger singleton...");

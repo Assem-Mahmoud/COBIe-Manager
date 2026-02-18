@@ -26,6 +26,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
         public string RoomRefParameter { get; set; } = "ACG-4D-RoomRef";
 
         /// <summary>
+        /// Parameter name for ACG Box ID from groups
+        /// </summary>
+        public string AcgBoxIdParameter { get; set; } = "ACG-BOX-ID";
+
+        /// <summary>
         /// Validates that all parameter names are non-empty
         /// </summary>
         /// <returns>True if all parameter names are valid, false otherwise</returns>
@@ -51,6 +56,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
                 return false;
             }
 
+            if (string.IsNullOrWhiteSpace(AcgBoxIdParameter))
+            {
+                return false;
+            }
+
             return true;
         }
 
@@ -66,14 +76,16 @@ namespace COBIeManager.Features.ParameterFiller.Models
             string levelParameter,
             string roomNumberParameter,
             string roomNameParameter,
-            string roomRefParameter)
+            string roomRefParameter,
+            string acgBoxIdParameter = null)
         {
             return new ParameterMapping
             {
                 LevelParameter = levelParameter,
                 RoomNumberParameter = roomNumberParameter,
                 RoomNameParameter = roomNameParameter,
-                RoomRefParameter = roomRefParameter
+                RoomRefParameter = roomRefParameter,
+                AcgBoxIdParameter = acgBoxIdParameter ?? "ACG-BOX-ID"
             };
         }
     }

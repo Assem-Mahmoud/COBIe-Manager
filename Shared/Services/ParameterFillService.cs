@@ -11,22 +11,28 @@ using COBIeManager.Shared.Models;
 namespace COBIeManager.Shared.Services
 {
     /// <summary>
-    /// Service for orchestrating parameter fill operations
+    /// Service for orchestrating parameter fill operations with multi-select fill modes
     /// </summary>
     public class ParameterFillService : IParameterFillService
     {
         private readonly ILogger _logger;
         private readonly ILevelAssignmentService _levelAssignmentService;
         private readonly IRoomAssignmentService _roomAssignmentService;
+        private readonly IBoxIdFillService _boxIdFillService;
+        private readonly IRoomFillService _roomFillService;
 
         public ParameterFillService(
             ILogger logger,
             ILevelAssignmentService levelAssignmentService,
-            IRoomAssignmentService roomAssignmentService)
+            IRoomAssignmentService roomAssignmentService,
+            IBoxIdFillService boxIdFillService,
+            IRoomFillService roomFillService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _levelAssignmentService = levelAssignmentService ?? throw new ArgumentNullException(nameof(levelAssignmentService));
             _roomAssignmentService = roomAssignmentService ?? throw new ArgumentNullException(nameof(roomAssignmentService));
+            _boxIdFillService = boxIdFillService ?? throw new ArgumentNullException(nameof(boxIdFillService));
+            _roomFillService = roomFillService ?? throw new ArgumentNullException(nameof(roomFillService));
         }
 
         /// <summary>
@@ -47,7 +53,7 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(config));
             }
 
-            _logger.Info("Starting preview analysis");
+            _logger.Info($"Starting preview analysis (FillMode: {config.FillMode})");
 
             var summary = new PreviewSummary();
 
@@ -60,46 +66,83 @@ namespace COBIeManager.Shared.Services
                 return summary;
             }
 
-            // Collect elements by category
-            var elements = CollectElements(document, config, summary);
+            // Check which modes are selected using bitwise operations
+            bool hasLevelMode = (config.FillMode & FillMode.Level) != 0;
+            bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
+            bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
+            bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
 
-            if (!elements.Any())
+            // Process room name preview if mode is selected and parameters are mapped
+            if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
             {
-                _logger.Info("No elements found for preview");
-                return summary;
-            }
+                var roomPreview = _roomFillService.PreviewFill(document, config);
+                summary.EstimatedElementsToProcess += roomPreview.EstimatedElementsToProcess;
+                summary.EstimatedRoomAssignments += roomPreview.EstimatedRoomsFound;
 
-            _logger.Info($"Previewing {elements.Count} elements");
-
-            // Count elements in level band
-            int inBandCount = 0;
-            int roomAssignableCount = 0;
-            int processedCount = 0;
-
-            foreach (var element in elements)
-            {
-                processedCount++;
-
-                // Report progress every 100 elements
-                if (processedCount % 100 == 0)
+                foreach (var warning in roomPreview.ValidationWarnings)
                 {
-                    _logger.Debug($"Preview progress: {processedCount}/{elements.Count} elements analyzed");
+                    summary.AddValidationWarning(warning);
                 }
 
-                // Check if element is in level band
-                if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                foreach (var category in roomPreview.CategoriesWithNoElements)
                 {
-                    inBandCount++;
+                    summary.AddEmptyCategory(category);
+                }
 
-                    // Check if room can be assigned (only for MVP - User Story 1)
-                    // Room assignment is User Story 2, so we skip for now
+                _logger.Info($"RoomName mode preview: {roomPreview.EstimatedRoomsFound} elements with rooms");
+            }
+
+            // Process room number preview if mode is selected and parameters are mapped
+            if (hasRoomNumberMode && config.GetRoomNumberModeParameters().Count > 0)
+            {
+                var roomPreview = _roomFillService.PreviewFill(document, config);
+                summary.EstimatedElementsToProcess += roomPreview.EstimatedElementsToProcess;
+                summary.EstimatedRoomAssignments += roomPreview.EstimatedRoomsFound;
+
+                foreach (var warning in roomPreview.ValidationWarnings)
+                {
+                    summary.AddValidationWarning(warning);
+                }
+
+                foreach (var category in roomPreview.CategoriesWithNoElements)
+                {
+                    summary.AddEmptyCategory(category);
+                }
+
+                _logger.Info($"RoomNumber mode preview: {roomPreview.EstimatedRoomsFound} elements with rooms");
+            }
+
+            // Process groups preview if mode is selected and parameters are mapped
+            if (hasGroupsMode && config.GetGroupModeParameters().Count > 0)
+            {
+                // Group mode preview would go here
+                _logger.Info("Groups mode preview: Box ID fill preview not yet implemented");
+            }
+
+            // Process level preview if mode is selected and parameters are mapped
+            if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
+            {
+                var elements = CollectElements(document, config, summary);
+
+                if (elements.Any())
+                {
+                    _logger.Info($"Previewing {elements.Count} elements for level mode");
+
+                    int inBandCount = 0;
+                    foreach (var element in elements)
+                    {
+                        if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                        {
+                            inBandCount++;
+                        }
+                    }
+
+                    summary.EstimatedElementsToProcess += inBandCount;
+                    _logger.Info($"Level mode preview: {inBandCount} elements in level band");
                 }
             }
 
-            summary.EstimatedElementsToProcess = inBandCount;
-            summary.EstimatedRoomAssignments = 0; // Will be implemented in User Story 2
-
-            _logger.Info($"Preview complete: {inBandCount} elements in level band");
+            _logger.Info($"Preview complete: {summary.EstimatedElementsToProcess} elements to process");
 
             return summary;
         }
@@ -126,10 +169,11 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(config));
             }
 
-            _logger.Info("Starting parameter fill operation");
+            _logger.Info($"Starting parameter fill operation (FillMode: {config.FillMode})");
 
             var stopwatch = Stopwatch.StartNew();
             var processingLogger = new ProcessingLogger(_logger);
+            var finalSummary = processingLogger.GetSummary();
 
             // Validate configuration
             if (!config.IsValid())
@@ -139,97 +183,150 @@ namespace COBIeManager.Shared.Services
                 throw new InvalidOperationException($"Invalid configuration: {error}");
             }
 
-            // Collect elements by category
-            var summary = new PreviewSummary();
-            var elements = CollectElements(document, config, summary);
+            // Check which modes are selected using bitwise operations
+            bool hasLevelMode = (config.FillMode & FillMode.Level) != 0;
+            bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
+            bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
+            bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
 
-            if (!elements.Any())
+            _logger.Info($"Processing modes - Level: {hasLevelMode}, RoomName: {hasRoomNameMode}, RoomNumber: {hasRoomNumberMode}, Groups: {hasGroupsMode}");
+
+            // Process room name fill if mode is selected and parameters are mapped
+            if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
             {
-                _logger.Warn("No elements found to process");
-                var emptySummary = processingLogger.GetSummary();
-                emptySummary.ProcessingDuration = stopwatch.Elapsed;
-                return emptySummary;
+                _logger.Info("Processing room name fill");
+                var roomFillSummary = _roomFillService.ExecuteFill(document, config, progressAction);
+                finalSummary.RoomFillSummary = roomFillSummary;
+                _logger.Info($"Room name fill complete: {roomFillSummary.ElementsUpdated} elements updated");
             }
 
-            _logger.Info($"Processing {elements.Count} elements");
-
-            // Use transaction for parameter modification
-            using (var transaction = new Transaction(document, "Auto-Fill Parameters"))
+            // Process room number fill if mode is selected and parameters are mapped
+            if (hasRoomNumberMode && config.GetRoomNumberModeParameters().Count > 0)
             {
-                transaction.Start();
-
-                try
+                _logger.Info("Processing room number fill");
+                var roomFillSummary = _roomFillService.ExecuteFill(document, config, progressAction);
+                if (finalSummary.RoomFillSummary == null)
                 {
-                    int processedCount = 0;
-                    int levelParametersFilled = 0;
-                    var totalSucessElements = new List<ElementId>();
+                    finalSummary.RoomFillSummary = roomFillSummary;
+                }
+                _logger.Info($"Room number fill complete: {roomFillSummary.ElementsUpdated} elements updated");
+            }
 
-                    foreach (var element in elements)
+            // Process groups fill if mode is selected and parameters are mapped
+            if (hasGroupsMode && config.GetGroupModeParameters().Count > 0)
+            {
+                var selectedParams = config.GetGroupModeParameters();
+                if (selectedParams.Count > 0)
+                {
+                    _logger.Info("Processing box ID fill");
+                    var boxIdParameter = selectedParams[0];
+                    var boxIdSummary = _boxIdFillService.ExecuteFill(
+                        document,
+                        boxIdParameter,
+                        config.OverwriteExisting,
+                        includeGroupElement: true,
+                        progressAction);
+                    finalSummary.BoxIdFillSummary = boxIdSummary;
+                    _logger.Info($"Box ID fill complete: {boxIdSummary.MembersUpdated} members updated");
+                }
+            }
+
+            // Process level fill if mode is selected and parameters are mapped
+            if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
+            {
+                var summary = new PreviewSummary();
+                var elements = CollectElements(document, config, summary);
+
+                if (elements.Any())
+                {
+                    _logger.Info($"Processing {elements.Count} elements for level mode");
+
+                    var selectedParameters = config.GetLevelModeParameters();
+                    _logger.Info($"Filling {selectedParameters.Count} level-mode parameters: {string.Join(", ", selectedParameters)}");
+
+                    // Use transaction for parameter modification
+                    using (var transaction = new Transaction(document, "Auto-Fill Level Parameters"))
                     {
-                        processedCount++;
+                        transaction.Start();
 
-                        // Report progress every 100 elements
-                        if (processedCount % 100 == 0)
+                        try
                         {
-                            var message = $"Processing element {processedCount} of {elements.Count}";
-                            _logger.Debug(message);
-                            progressAction?.Invoke(processedCount, message);
+                            int processedCount = 0;
+                            int parametersFilled = 0;
+                            var totalSucessElements = new List<ElementId>();
+
+                            foreach (var element in elements)
+                            {
+                                processedCount++;
+
+                                // Report progress every 100 elements
+                                if (processedCount % 100 == 0)
+                                {
+                                    var message = $"Processing element {processedCount} of {elements.Count}";
+                                    _logger.Debug(message);
+                                    progressAction?.Invoke(processedCount, message);
+                                }
+
+                                // Check if element is in level band
+                                if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                                {
+                                    // Fill all selected parameters with the level name
+                                    foreach (var paramName in selectedParameters)
+                                    {
+                                        var result = _levelAssignmentService.AssignLevelParameter(
+                                            element,
+                                            config.BaseLevel.Name,
+                                            processingLogger,
+                                            paramName,
+                                            config.OverwriteExisting);
+
+                                        if (result.Success)
+                                        {
+                                            parametersFilled++;
+                                        }
+                                    }
+
+                                    totalSucessElements.Add(element.Id);
+
+                                    // Log success for the first parameter (to avoid spamming logs)
+                                    if (selectedParameters.Count > 0)
+                                    {
+                                        processingLogger.LogSuccess(element.Id, element.Category?.Name,
+                                            $"Filled {selectedParameters.Count} level parameters");
+                                    }
+                                }
+                                else
+                                {
+                                    // Element is outside level band
+                                    var position = _levelAssignmentService.GetElementPositionInBand(element, config.BaseLevel, config.TopLevel);
+                                    var skipReason = position == LevelBandPosition.BelowBand
+                                        ? SkipReasons.BelowBand
+                                        : SkipReasons.AboveBand;
+                                    processingLogger.LogSkip(element.Id, element.Category?.Name, skipReason);
+                                }
+                            }
+
+                            document.ActiveView.IsolateElementsTemporary(totalSucessElements);
+                            transaction.Commit();
+                            _logger.Info($"Level mode transaction committed: {parametersFilled} parameter assignments completed");
                         }
-
-                        // Check if element is in level band
-                        if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                        catch (Exception ex)
                         {
-                            // Assign level parameter
-                            var result = _levelAssignmentService.AssignLevelParameter(
-                                element,
-                                config.BaseLevel.Name,
-                                processingLogger,
-                                config.ParameterMapping.LevelParameter,
-                                config.OverwriteExisting);
-
-                            totalSucessElements.Add(element.Id);
-
-                            if (result.Success)
-                            {
-                                levelParametersFilled++;
-                                processingLogger.LogSuccess(element.Id, element.Category?.Name, result.SkipReason);
-                            }
-                            else if (result.Skipped)
-                            {
-                                processingLogger.LogSkip(element.Id, element.Category?.Name, result.SkipReason);
-                            }
-                            else
-                            {
-                                processingLogger.LogError(element.Id, element.Category?.Name, result.SkipReason ?? "Failed to assign level parameter");
-                            }
-                        }
-                        else
-                        {
-                            // Element is outside level band
-                            var position = _levelAssignmentService.GetElementPositionInBand(element, config.BaseLevel, config.TopLevel);
-                            var skipReason = position == LevelBandPosition.BelowBand
-                                ? SkipReasons.BelowBand
-                                : SkipReasons.AboveBand;
-                            processingLogger.LogSkip(element.Id, element.Category?.Name, skipReason);
+                            _logger.Error("Error during level parameter fill operation", ex);
+                            transaction.RollBack();
+                            throw;
                         }
                     }
 
-                    document.ActiveView.IsolateElementsTemporary(totalSucessElements);
-                    transaction.Commit();
-                    _logger.Info($"Transaction committed: {levelParametersFilled} level parameters filled");
+                    finalSummary.TotalElementsScanned = elements.Count;
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.Error("Error during parameter fill operation", ex);
-                    transaction.RollBack();
-                    throw;
+                    _logger.Warn("No elements found for level mode processing");
                 }
             }
 
-            var finalSummary = processingLogger.GetSummary();
             finalSummary.ProcessingDuration = stopwatch.Elapsed;
-            finalSummary.TotalElementsScanned = elements.Count;
-
             _logger.Info($"Parameter fill complete in {finalSummary.ProcessingDuration.TotalSeconds:F2} seconds");
 
             return finalSummary;
@@ -249,37 +346,37 @@ namespace COBIeManager.Shared.Services
         {
             var allElements = new List<Element>();
 
-            //foreach (var category in config.SelectedCategories)
-            //{
-            //    var collector = new FilteredElementCollector(document)                    
-            //        .WhereElementIsNotElementType();
+            // Get selected categories using the new method
+            var selectedCategories = config.GetSelectedCategories();
 
-            //    var categoryElements = collector.ToElements();
+            if (selectedCategories.Count == 0)
+            {
+                _logger.Debug("No categories selected for processing");
+                return allElements;
+            }
 
-            //    if (!categoryElements.Any())
-            //    {
-            //        var categoryName = category.ToString().Replace("OST_", "");
-            //        previewSummary?.AddEmptyCategory(categoryName);
-            //        _logger.Debug($"No elements found for category: {categoryName}");
-            //    }
-            //    else
-            //    {
-            //        allElements.AddRange(categoryElements);
-            //        _logger.Debug($"Found {categoryElements.Count} elements in category: {category}");
-            //    }
-            //}
-            var collector = new FilteredElementCollector(document)
-    .WhereElementIsNotElementType()
-    .WhereElementIsViewIndependent(); // removes view-specific items
+            // Use category filter for each selected category
+            foreach (var category in selectedCategories)
+            {
+                var collector = new FilteredElementCollector(document)
+                    .WhereElementIsNotElementType()
+                    .WhereElementIsViewIndependent()
+                    .OfCategory(category);
 
-            // Exclude non-model categories
-            allElements= collector
-                .Where(e =>
-                    e.Category != null &&
-                    e.Category.CategoryType == CategoryType.Model &&
-                    !e.Category.IsTagCategory &&
-                    e.CanHaveTypeAssigned()) // optional safety
-                .ToList();
+                var categoryElements = collector.ToElements();
+
+                if (!categoryElements.Any())
+                {
+                    var categoryName = category.ToString().Replace("OST_", "");
+                    previewSummary?.AddEmptyCategory(categoryName);
+                    _logger.Debug($"No elements found for category: {categoryName}");
+                }
+                else
+                {
+                    allElements.AddRange(categoryElements);
+                    _logger.Debug($"Found {categoryElements.Count} elements in category: {category}");
+                }
+            }
 
             return allElements;
         }

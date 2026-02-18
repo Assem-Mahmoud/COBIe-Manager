@@ -55,7 +55,7 @@ A Revit user needs to automatically assign room information (number, name) to mo
 **Acceptance Scenarios**:
 
 1. **Given** a FamilyInstance (door, window, furniture) with a Room property available, **When** the element has an associated room, **Then** the room number and name parameters are populated from that room
-2. **Given** a door with FromRoom and ToRoom properties, **When** processing occurs, **Then** FromRoom is preferred, falling back to ToRoom if FromRoom is null
+2. **Given** a door with FromRoom and ToRoom properties, **When** processing occurs, **Then** ToRoom is preferred
 3. **Given** an element with a LocationPoint, **When** no direct Room property exists, **Then** the system performs a point-in-room test to find the containing room
 4. **Given** an element with a LocationCurve (e.g., certain beam types), **When** no direct Room property exists, **Then** the system uses the curve midpoint for the point-in-room test
 5. **Given** an element not located in any room, **When** processing occurs, **Then** the element is logged with the reason and room parameters remain unchanged (or set to N/A based on user preference)

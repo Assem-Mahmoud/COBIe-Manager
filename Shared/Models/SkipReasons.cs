@@ -18,6 +18,10 @@ namespace COBIeManager.Shared.Models
         public const string ParameterMissing = "Parameter missing";
         public const string ParameterReadOnly = "Parameter read-only";
         public const string ExistingValueNoOverwrite = "Existing value, overwrite disabled";
+        public const string ValueExists = ExistingValueNoOverwrite;
+
+        // Group skip reasons
+        public const string NestedGroup = "Nested group member";
 
         // Other skip reasons
         public const string FailedToAssignParameter = "Failed to assign level parameter";
