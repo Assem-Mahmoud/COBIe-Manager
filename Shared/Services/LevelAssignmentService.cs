@@ -94,16 +94,24 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
-        /// Gets the position of an element relative to a level band
+        /// Gets the position of an element relative to a level band.
+        /// Tolerance extends the band range:
+        /// - Base tolerance extends the bottom of the band downward
+        /// - Top tolerance extends the top of the band upward
+        /// Elements must be COMPLETELY INSIDE the extended range to be considered InBand.
         /// </summary>
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level</param>
         /// <param name="topLevel">Top level</param>
+        /// <param name="baseTolerance">Tolerance to extend below base level (project units)</param>
+        /// <param name="topTolerance">Tolerance to extend above top level (project units)</param>
         /// <returns>Position relative to level band</returns>
         public LevelBandPosition GetElementPositionInBand(
             Element element,
             Level baseLevel,
-            Level topLevel)
+            Level topLevel,
+            double baseTolerance = 0.0,
+            double topTolerance = 0.0)
         {
             if (element == null)
             {
@@ -121,20 +129,46 @@ namespace COBIeManager.Shared.Services
             var baseElevation = baseLevel.Elevation;
             var topElevation = topLevel.Elevation;
 
-            // Check if element is completely below the band
-            if (bbox.Max.Z <= baseElevation)
+            // Extend the band with tolerance
+            // baseTolerance extends the bottom downward (subtracted from base)
+            // topTolerance extends the top upward (added to top)
+            var adjustedBase = baseElevation - baseTolerance;
+            var adjustedTop = topElevation + topTolerance;
+
+            // Element must be COMPLETELY INSIDE the extended range
+            // Check if element's minimum point is below the extended base level
+            if (bbox.Min.Z < adjustedBase)
             {
                 return LevelBandPosition.BelowBand;
             }
 
-            // Check if element is completely above the band
-            if (bbox.Min.Z >= topElevation)
+            // Check if element's maximum point is above the extended top level
+            if (bbox.Max.Z > adjustedTop)
             {
                 return LevelBandPosition.AboveBand;
             }
 
-            // Element intersects with the band
+            // Element is completely within the extended band range
             return LevelBandPosition.InBand;
+        }
+
+        /// <summary>
+        /// Checks if an element is within a level band
+        /// </summary>
+        /// <param name="element">Element to check</param>
+        /// <param name="baseLevel">Bottom level of band</param>
+        /// <param name="topLevel">Top level of band</param>
+        /// <param name="baseTolerance">Tolerance to extend below base level (project units)</param>
+        /// <param name="topTolerance">Tolerance to extend above top level (project units)</param>
+        /// <returns>True if element is completely inside the level band</returns>
+        public bool IsElementInLevelBand(
+            Element element,
+            Level baseLevel,
+            Level topLevel,
+            double baseTolerance = 0.0,
+            double topTolerance = 0.0)
+        {
+            return GetElementPositionInBand(element, baseLevel, topLevel, baseTolerance, topTolerance) == LevelBandPosition.InBand;
         }
 
         /// <summary>

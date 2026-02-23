@@ -15,11 +15,13 @@ public interface IParameterBindingService
     /// <param name="document">The Revit document</param>
     /// <param name="definitions">The COBie parameter definitions to bind</param>
     /// <param name="groupName">The group name in the shared parameter file</param>
+    /// <param name="variesAcrossGroups">When false, values are aligned across group instances. When true, values can vary per group instance.</param>
     /// <returns>Result of the binding operation</returns>
     ParameterBindingResult BindParameters(
         Document document,
         IEnumerable<CobieParameterDefinition> definitions,
-        string groupName = "COBie");
+        string groupName = "COBie",
+        bool variesAcrossGroups = false);
 
     /// <summary>
     /// Gets all categories that a parameter is bound to in the document.

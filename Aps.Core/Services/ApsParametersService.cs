@@ -755,7 +755,18 @@ public class ApsParametersService
 
                 case "groupBindingId":
                 case "group":
-                    var groupId = value?.ToString();
+                    string groupId = null;
+                    // The value might be a JSON object with "id" property, or a simple string
+                    if (value is JObject groupObj)
+                    {
+                        // Extract the id property from the group object
+                        groupId = groupObj["id"]?.ToString() ?? groupObj["bindingId"]?.ToString();
+                    }
+                    else if (value != null)
+                    {
+                        // It's a simple string or other value
+                        groupId = value.ToString();
+                    }
                     param.GroupBindingId = groupId;
                     logger?.Info($"{prefix}     - groupBindingId: '{groupId ?? "(null)"}'");
                     break;
@@ -871,7 +882,19 @@ public class ApsParametersService
         var groupToken = metadata["group"];
         if (groupToken != null)
         {
-            var groupId = groupToken["id"]?.ToString() ?? groupToken.ToString();
+            string groupId = null;
+            // The group might be a JSON object with "id" property
+            if (groupToken is JObject groupObj)
+            {
+                groupId = groupObj["id"]?.ToString() ?? groupObj["bindingId"]?.ToString();
+            }
+            // If still null, try to get the string representation
+            if (string.IsNullOrEmpty(groupId) && groupToken != null)
+            {
+                // Only use ToString if it's a simple value (not a JObject)
+                if (!(groupToken is JObject))
+                    groupId = groupToken.ToString();
+            }
             param.GroupBindingId = groupId;
             logger?.Info($"{prefix}   - group: '{groupId ?? "(null)"}'");
         }

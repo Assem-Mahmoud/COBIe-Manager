@@ -15,11 +15,15 @@ namespace COBIeManager.Shared.Interfaces
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level</param>
         /// <param name="topLevel">Top level</param>
+        /// <param name="baseTolerance">Tolerance below base level in project units (default: 0)</param>
+        /// <param name="topTolerance">Tolerance above top level in project units (default: 0)</param>
         /// <returns>Position relative to level band</returns>
         LevelBandPosition GetElementPositionInBand(
             Element element,
             Level baseLevel,
-            Level topLevel);
+            Level topLevel,
+            double baseTolerance = 0.0,
+            double topTolerance = 0.0);
 
         /// <summary>
         /// Checks if an element is within a level band
@@ -27,8 +31,15 @@ namespace COBIeManager.Shared.Interfaces
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level of band</param>
         /// <param name="topLevel">Top level of band</param>
+        /// <param name="baseTolerance">Tolerance below base level in project units (default: 0)</param>
+        /// <param name="topTolerance">Tolerance above top level in project units (default: 0)</param>
         /// <returns>True if element intersects the level band</returns>
-        bool IsElementInLevelBand(Element element, Level baseLevel, Level topLevel);
+        bool IsElementInLevelBand(
+            Element element,
+            Level baseLevel,
+            Level topLevel,
+            double baseTolerance = 0.0,
+            double topTolerance = 0.0);
 
         /// <summary>
         /// Assigns level parameter to a single element

@@ -1,4 +1,5 @@
 using Autodesk.Revit.DB;
+using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -8,44 +9,148 @@ namespace COBIeManager.Features.ParameterFiller.Models
 {
     /// <summary>
     /// User configuration for the parameter fill operation.
+    /// This configuration separates general settings from mode-specific settings.
     /// </summary>
     public class FillConfiguration
     {
         /// <summary>
-        /// The lower level defining the vertical band bottom
+        /// General settings that apply to all fill modes
         /// </summary>
-        public Level BaseLevel { get; set; }
+        public GeneralFillSettings General { get; set; }
 
         /// <summary>
-        /// The upper level defining the vertical band top
+        /// Configuration specific to Level-based filling
         /// </summary>
-        public Level TopLevel { get; set; }
+        public LevelModeConfig LevelMode { get; set; }
 
         /// <summary>
-        /// Element categories to process (legacy property for backward compatibility)
+        /// Configuration specific to Room Name filling
         /// </summary>
-        [System.Obsolete("Use AvailableCategories instead")]
-        public IList<BuiltInCategory> SelectedCategories { get; set; }
+        public RoomNameModeConfig RoomNameMode { get; set; }
 
         /// <summary>
-        /// Available categories with selection state
+        /// Configuration specific to Room Number filling
         /// </summary>
-        public IList<CategoryItem> AvailableCategories { get; set; }
+        public RoomNumberModeConfig RoomNumberMode { get; set; }
 
         /// <summary>
-        /// Available parameters with selection state
+        /// Configuration specific to Groups (Box ID) filling
         /// </summary>
-        public IList<ParameterItem> AvailableParameters { get; set; }
+        public GroupsModeConfig GroupsMode { get; set; }
 
         /// <summary>
-        /// Whether to overwrite existing parameter values
+        /// Configuration specific to Scope Box-based filling
         /// </summary>
-        public bool OverwriteExisting { get; set; }
+        public ScopeBoxModeConfig ScopeBoxMode { get; set; }
+
+        // ========== LEGACY PROPERTIES FOR BACKWARD COMPATIBILITY ==========
+        // These properties delegate to the new structure to maintain compatibility
+        // with existing code that hasn't been migrated yet.
 
         /// <summary>
-        /// Fill operation mode(s) - can be multiple using flags
+        /// Legacy property - maps to General.OverwriteExisting
         /// </summary>
-        public FillMode FillMode { get; set; } = Shared.Models.FillMode.None;
+        [Obsolete("Use General.OverwriteExisting instead")]
+        public bool OverwriteExisting
+        {
+            get => General?.OverwriteExisting ?? false;
+            set
+            {
+                if (General != null) General.OverwriteExisting = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - maps to General.SelectedCategories
+        /// </summary>
+        [Obsolete("Use General.SelectedCategories instead")]
+        public IList<BuiltInCategory> SelectedCategories
+        {
+            get => General?.SelectedCategories;
+            set
+            {
+                if (General != null) General.SelectedCategories = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - maps to General.AvailableCategories
+        /// </summary>
+        [Obsolete("Use General.AvailableCategories instead")]
+        public IList<CategoryItem> AvailableCategories
+        {
+            get => General?.AvailableCategories;
+            set
+            {
+                if (General != null) General.AvailableCategories = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - maps to General.AvailableParameters
+        /// </summary>
+        [Obsolete("Use General.AvailableParameters instead")]
+        public IList<ParameterItem> AvailableParameters
+        {
+            get => General?.AvailableParameters;
+            set
+            {
+                if (General != null) General.AvailableParameters = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - maps to BaseLevel/TopLevel based on enabled modes
+        /// </summary>
+        [Obsolete("Use LevelMode.BaseLevel instead")]
+        public Level BaseLevel
+        {
+            get => LevelMode?.BaseLevel;
+            set
+            {
+                if (LevelMode != null) LevelMode.BaseLevel = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - maps to BaseLevel/TopLevel based on enabled modes
+        /// </summary>
+        [Obsolete("Use LevelMode.TopLevel instead")]
+        public Level TopLevel
+        {
+            get => LevelMode?.TopLevel;
+            set
+            {
+                if (LevelMode != null) LevelMode.TopLevel = value;
+            }
+        }
+
+        /// <summary>
+        /// Legacy property - returns the combined flags of enabled modes
+        /// </summary>
+        [Obsolete("Use individual mode properties instead")]
+        public FillMode FillMode
+        {
+            get
+            {
+                FillMode mode = FillMode.None;
+                if (LevelMode?.IsEnabled == true) mode |= FillMode.Level;
+                if (RoomNameMode?.IsEnabled == true) mode |= FillMode.RoomName;
+                if (RoomNumberMode?.IsEnabled == true) mode |= FillMode.RoomNumber;
+                if (GroupsMode?.IsEnabled == true) mode |= FillMode.Groups;
+                if (ScopeBoxMode?.IsEnabled == true) mode |= FillMode.ScopeBox;
+                return mode;
+            }
+            set
+            {
+                // Set enabled flags based on the FillMode value
+                if (LevelMode != null) LevelMode.IsEnabled = (value & FillMode.Level) != 0;
+                if (RoomNameMode != null) RoomNameMode.IsEnabled = (value & FillMode.RoomName) != 0;
+                if (RoomNumberMode != null) RoomNumberMode.IsEnabled = (value & FillMode.RoomNumber) != 0;
+                if (GroupsMode != null) GroupsMode.IsEnabled = (value & FillMode.Groups) != 0;
+                if (ScopeBoxMode != null) ScopeBoxMode.IsEnabled = (value & FillMode.ScopeBox) != 0;
+            }
+        }
 
         /// <summary>
         /// Creates a default configuration with standard settings
@@ -54,82 +159,158 @@ namespace COBIeManager.Features.ParameterFiller.Models
         {
             return new FillConfiguration
             {
-                SelectedCategories = new List<BuiltInCategory>(),
-                AvailableCategories = new List<CategoryItem>(),
-                AvailableParameters = new List<ParameterItem>(),
-                OverwriteExisting = false,
-                FillMode = Shared.Models.FillMode.None
+                General = GeneralFillSettings.CreateDefault(),
+                LevelMode = new LevelModeConfig { IsEnabled = false },
+                RoomNameMode = new RoomNameModeConfig { IsEnabled = false },
+                RoomNumberMode = new RoomNumberModeConfig { IsEnabled = false },
+                GroupsMode = new GroupsModeConfig { IsEnabled = false },
+                ScopeBoxMode = new ScopeBoxModeConfig { IsEnabled = false }
             };
         }
 
         /// <summary>
-        /// Validates the configuration
+        /// Gets all enabled fill mode configurations
         /// </summary>
-        /// <returns>True if configuration is valid, false otherwise</returns>
+        public IEnumerable<FillModeConfigBase> GetEnabledModes()
+        {
+            var modes = new List<FillModeConfigBase>();
+
+            if (LevelMode?.IsEnabled == true) modes.Add(LevelMode);
+            if (RoomNameMode?.IsEnabled == true) modes.Add(RoomNameMode);
+            if (RoomNumberMode?.IsEnabled == true) modes.Add(RoomNumberMode);
+            if (GroupsMode?.IsEnabled == true) modes.Add(GroupsMode);
+            if (ScopeBoxMode?.IsEnabled == true) modes.Add(ScopeBoxMode);
+
+            return modes;
+        }
+
+        /// <summary>
+        /// Gets a specific mode configuration by its type
+        /// </summary>
+        public T GetModeConfig<T>() where T : FillModeConfigBase
+        {
+            return typeof(T) switch
+            {
+                var t when t == typeof(LevelModeConfig) => LevelMode as T,
+                var t when t == typeof(RoomNameModeConfig) => RoomNameMode as T,
+                var t when t == typeof(RoomNumberModeConfig) => RoomNumberMode as T,
+                var t when t == typeof(GroupsModeConfig) => GroupsMode as T,
+                var t when t == typeof(ScopeBoxModeConfig) => ScopeBoxMode as T,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Validates the entire configuration
+        /// </summary>
         public bool IsValid()
         {
             // Check for unmapped parameters (selected but not mapped to any mode)
-            if (HasUnmappedParameters())
+            if (General?.HasUnmappedParameters() == true)
             {
                 return false;
             }
 
-            // No mode selected
-            if (FillMode == Shared.Models.FillMode.None)
+            // Must have at least one mode enabled
+            if (!HasAnyEnabledMode())
             {
                 return false;
             }
-
-            // Helper to check if categories are selected
-            bool HasCategories() => (SelectedCategories != null && SelectedCategories.Count > 0) ||
-                                    (AvailableCategories != null && AvailableCategories.Any(c => c.IsSelected));
-
-            bool hasLevelMode = (FillMode & Shared.Models.FillMode.Level) != 0;
 
             // Must have at least one category selected
-            if (!HasCategories())
+            if (General?.HasSelectedCategories() != true)
             {
                 return false;
             }
 
-            // If Level mode is selected, validate level requirements (but NOT parameter count)
-            if (hasLevelMode)
+            // Validate each enabled mode
+            foreach (var mode in GetEnabledModes())
             {
-                if (BaseLevel == null || TopLevel == null)
-                {
-                    return false;
-                }
-
-                if (BaseLevel.Elevation >= TopLevel.Elevation)
+                if (!mode.IsValid())
                 {
                     return false;
                 }
             }
 
-            // At least one selected mode must have parameters mapped
-            // Modes without parameters will be skipped during execution
+            // At least one enabled mode must have parameters mapped
             bool hasAnyMappedParameters = GetLevelModeParameters().Count > 0 ||
                                           GetRoomNameModeParameters().Count > 0 ||
                                           GetRoomNumberModeParameters().Count > 0 ||
-                                          GetGroupModeParameters().Count > 0;
+                                          GetGroupModeParameters().Count > 0 ||
+                                          GetScopeBoxModeParameters().Count > 0;
 
             return hasAnyMappedParameters;
         }
 
         /// <summary>
-        /// Checks if at least one parameter is selected
+        /// Gets validation error message if configuration is invalid
         /// </summary>
-        private bool HasAtLeastOneSelectedParameter()
+        public string GetValidationError()
         {
-            return AvailableParameters != null && AvailableParameters.Any(p => p.IsSelected);
+            // Check for unmapped parameters first
+            if (General?.HasUnmappedParameters() == true)
+            {
+                var unmappedParams = General.GetUnmappedParameterNames();
+                return $"The following parameters must be mapped to a fill mode: {string.Join(", ", unmappedParams)}";
+            }
+
+            // No mode selected
+            if (!HasAnyEnabledMode())
+            {
+                return "At least one fill mode must be selected";
+            }
+
+            // Must have at least one category selected
+            if (General?.HasSelectedCategories() != true)
+            {
+                return "At least one category must be selected";
+            }
+
+            // Validate each enabled mode
+            foreach (var mode in GetEnabledModes())
+            {
+                var error = mode.GetValidationError();
+                if (error != null)
+                {
+                    return error;
+                }
+            }
+
+            // At least one enabled mode must have parameters mapped
+            bool hasAnyMappedParameters = GetLevelModeParameters().Count > 0 ||
+                                          GetRoomNameModeParameters().Count > 0 ||
+                                          GetRoomNumberModeParameters().Count > 0 ||
+                                          GetGroupModeParameters().Count > 0 ||
+                                          GetScopeBoxModeParameters().Count > 0;
+
+            if (!hasAnyMappedParameters)
+            {
+                return "At least one parameter must be mapped to a fill mode";
+            }
+
+            return null;
         }
+
+        /// <summary>
+        /// Checks if at least one fill mode is enabled
+        /// </summary>
+        private bool HasAnyEnabledMode()
+        {
+            return LevelMode?.IsEnabled == true ||
+                   RoomNameMode?.IsEnabled == true ||
+                   RoomNumberMode?.IsEnabled == true ||
+                   GroupsMode?.IsEnabled == true ||
+                   ScopeBoxMode?.IsEnabled == true;
+        }
+
+        // ========== LEGACY METHODS FOR BACKWARD COMPATIBILITY ==========
 
         /// <summary>
         /// Checks if all selected parameters have been mapped to a fill mode
         /// </summary>
         public bool HasUnmappedParameters()
         {
-            return AvailableParameters != null && AvailableParameters.Any(p => p.IsSelected && !p.IsMapped);
+            return General?.HasUnmappedParameters() ?? false;
         }
 
         /// <summary>
@@ -137,15 +318,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public IList<string> GetUnmappedParameterNames()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
-
-            return AvailableParameters
-                .Where(p => p.IsSelected && !p.IsMapped)
-                .Select(p => p.ParameterName)
-                .ToList();
+            return General?.GetUnmappedParameterNames() ?? new List<string>();
         }
 
         /// <summary>
@@ -153,14 +326,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public IList<BuiltInCategory> GetSelectedCategories()
         {
-            // If AvailableCategories is used, return selected ones
-            if (AvailableCategories != null && AvailableCategories.Any())
-            {
-                return AvailableCategories.Where(c => c.IsSelected).Select(c => c.Category).ToList();
-            }
-
-            // Otherwise, return the legacy SelectedCategories
-            return SelectedCategories ?? new List<BuiltInCategory>();
+            return General?.GetSelectedCategories() ?? new List<BuiltInCategory>();
         }
 
         /// <summary>
@@ -168,12 +334,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public IList<ParameterItem> GetSelectedParameters()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<ParameterItem>();
-            }
-
-            return AvailableParameters.Where(p => p.IsSelected).ToList();
+            return General?.GetSelectedParameters() ?? new List<ParameterItem>();
         }
 
         /// <summary>
@@ -181,115 +342,79 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public IList<string> GetSelectedParameterNames()
         {
-            if (AvailableParameters == null)
+            if (General?.AvailableParameters == null)
             {
                 return new List<string>();
             }
 
-            return AvailableParameters.Where(p => p.IsSelected).Select(p => p.ParameterName).ToList();
+            return General.AvailableParameters
+                .Where(p => p.IsSelected)
+                .Select(p => p.ParameterName)
+                .ToList();
         }
 
         /// <summary>
         /// Gets selected parameters filtered by their applicable mode
         /// </summary>
-        /// <param name="mode">The fill mode to filter by</param>
-        /// <returns>List of parameter names that match the specified mode</returns>
-        public IList<string> GetParameterNamesByMode(Shared.Models.FillMode mode)
+        public IList<string> GetParameterNamesByMode(FillMode mode)
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
-
-            return AvailableParameters
-                .Where(p => p.IsSelected && p.ApplicableMode == mode)
-                .Select(p => p.ParameterName)
-                .ToList();
+            return General?.GetParameterNamesByMode(mode) ?? new List<string>();
         }
 
         /// <summary>
         /// Gets selected parameters applicable for level-based filling
         /// </summary>
-        /// <returns>List of parameter names for level mode</returns>
         public IList<string> GetLevelModeParameters()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
-
-            return AvailableParameters
-                .Where(p => p.IsSelected && p.ApplicableMode == Shared.Models.FillMode.Level)
-                .Select(p => p.ParameterName)
-                .ToList();
+            return General?.GetParameterNamesByMode(FillMode.Level) ?? new List<string>();
         }
 
         /// <summary>
         /// Gets selected parameters applicable for room name filling
         /// </summary>
-        /// <returns>List of parameter names for room name mode</returns>
         public IList<string> GetRoomNameModeParameters()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
-
-            return AvailableParameters
-                .Where(p => p.IsSelected && p.ApplicableMode == Shared.Models.FillMode.RoomName)
-                .Select(p => p.ParameterName)
-                .ToList();
+            return General?.GetParameterNamesByMode(FillMode.RoomName) ?? new List<string>();
         }
 
         /// <summary>
         /// Gets selected parameters applicable for room number filling
         /// </summary>
-        /// <returns>List of parameter names for room number mode</returns>
         public IList<string> GetRoomNumberModeParameters()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
-
-            return AvailableParameters
-                .Where(p => p.IsSelected && p.ApplicableMode == Shared.Models.FillMode.RoomNumber)
-                .Select(p => p.ParameterName)
-                .ToList();
+            return General?.GetParameterNamesByMode(FillMode.RoomNumber) ?? new List<string>();
         }
 
         /// <summary>
         /// Gets selected parameters applicable for group-based filling
         /// </summary>
-        /// <returns>List of parameter names for group mode</returns>
         public IList<string> GetGroupModeParameters()
         {
-            if (AvailableParameters == null)
-            {
-                return new List<string>();
-            }
+            return General?.GetParameterNamesByMode(FillMode.Groups) ?? new List<string>();
+        }
 
-            return AvailableParameters
-                .Where(p => p.IsSelected && p.ApplicableMode == Shared.Models.FillMode.Groups)
-                .Select(p => p.ParameterName)
-                .ToList();
+        /// <summary>
+        /// Gets selected parameters applicable for scope box-based filling
+        /// </summary>
+        public IList<string> GetScopeBoxModeParameters()
+        {
+            return General?.GetParameterNamesByMode(FillMode.ScopeBox) ?? new List<string>();
         }
 
         /// <summary>
         /// Gets selected parameters applicable for room-based filling (all room-related modes)
         /// </summary>
-        /// <returns>List of parameter names for room mode</returns>
         public IList<string> GetRoomModeParameters()
         {
-            if (AvailableParameters == null)
+            if (General?.AvailableParameters == null)
             {
                 return new List<string>();
             }
 
-            return AvailableParameters
+            return General.AvailableParameters
                 .Where(p => p.IsSelected &&
-                           (p.ApplicableMode == Shared.Models.FillMode.RoomName ||
-                            p.ApplicableMode == Shared.Models.FillMode.RoomNumber))
+                           (p.ApplicableMode == FillMode.RoomName ||
+                            p.ApplicableMode == FillMode.RoomNumber))
                 .Select(p => p.ParameterName)
                 .ToList();
         }
@@ -299,78 +424,13 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public bool IsParameterSelected(string parameterName)
         {
-            if (AvailableParameters == null || string.IsNullOrEmpty(parameterName))
+            if (General?.AvailableParameters == null || string.IsNullOrEmpty(parameterName))
             {
                 return false;
             }
 
-            return AvailableParameters.Any(p =>
+            return General.AvailableParameters.Any(p =>
                 p.ParameterName.Equals(parameterName, StringComparison.OrdinalIgnoreCase) && p.IsSelected);
-        }
-
-        /// <summary>
-        /// Gets validation error message if configuration is invalid
-        /// </summary>
-        /// <returns>Validation error message or null if valid</returns>
-        public string GetValidationError()
-        {
-            // Check for unmapped parameters first
-            var unmappedParams = GetUnmappedParameterNames();
-            if (unmappedParams.Count > 0)
-            {
-                return $"The following parameters must be mapped to a fill mode: {string.Join(", ", unmappedParams)}";
-            }
-
-            // No mode selected
-            if (FillMode == Shared.Models.FillMode.None)
-            {
-                return "At least one fill mode must be selected";
-            }
-
-            // Helper to check if categories are selected
-            bool HasCategories() => (SelectedCategories != null && SelectedCategories.Count > 0) ||
-                                    (AvailableCategories != null && AvailableCategories.Any(c => c.IsSelected));
-
-            bool hasLevelMode = (FillMode & Shared.Models.FillMode.Level) != 0;
-
-            // Must have at least one category selected
-            if (!HasCategories())
-            {
-                return "At least one category must be selected";
-            }
-
-            // If Level mode is selected, validate level requirements (but NOT parameter count)
-            if (hasLevelMode)
-            {
-                if (BaseLevel == null)
-                {
-                    return "Base level must be selected when Level mode is enabled";
-                }
-
-                if (TopLevel == null)
-                {
-                    return "Top level must be selected when Level mode is enabled";
-                }
-
-                if (BaseLevel.Elevation >= TopLevel.Elevation)
-                {
-                    return "Top level must be above base level";
-                }
-            }
-
-            // At least one selected mode must have parameters mapped
-            // Modes without parameters will be skipped during execution
-            bool hasAnyMappedParameters = GetLevelModeParameters().Count > 0 ||
-                                          GetRoomNameModeParameters().Count > 0 ||
-                                          GetRoomNumberModeParameters().Count > 0 ||
-                                          GetGroupModeParameters().Count > 0;
-
-            if (!hasAnyMappedParameters)
-            {
-                return "At least one parameter must be mapped to a fill mode";
-            }
-
-            return null;
         }
     }
 }

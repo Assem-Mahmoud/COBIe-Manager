@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using Autodesk.Revit.DB;
 using COBIeManager.Features.ParameterFiller.ViewModels;
 
 namespace COBIeManager.Features.ParameterFiller.Views
@@ -29,6 +31,28 @@ namespace COBIeManager.Features.ParameterFiller.Views
             // Set the DataContext to the ViewModel
             // This enables all XAML bindings to work
             DataContext = ViewModel;
+        }
+
+        /// <summary>
+        /// Event handler for scope box checkbox checked event
+        /// </summary>
+        private void ScopeBoxCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.Tag is Element scopeBoxElement)
+            {
+                ViewModel.Config.ScopeBoxMode.AddScopeBox(scopeBoxElement.Id);
+            }
+        }
+
+        /// <summary>
+        /// Event handler for scope box checkbox unchecked event
+        /// </summary>
+        private void ScopeBoxCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.Tag is Element scopeBoxElement)
+            {
+                ViewModel.Config.ScopeBoxMode.RemoveScopeBox(scopeBoxElement.Id);
+            }
         }
     }
 }

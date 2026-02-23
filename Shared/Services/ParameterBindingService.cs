@@ -207,7 +207,8 @@ public class ParameterBindingService : IParameterBindingService
     public ParameterBindingResult BindParameters(
         Document document,
         IEnumerable<CobieParameterDefinition> definitions,
-        string groupName = "COBie")
+        string groupName = "COBie",
+        bool variesAcrossGroups = false)
     {
         var result = new ParameterBindingResult();
         var application = document.Application;
@@ -324,6 +325,10 @@ public class ParameterBindingService : IParameterBindingService
 
                     if (boundSuccess)
                     {
+                        // Set the VariesAcrossGroups property on the InternalDefinition after binding
+                        // This controls whether parameter values are aligned across group instances
+                        SetVaryBetweenGroupsForParameter(document, externalDef.Name, variesAcrossGroups);
+
                         result.BoundCount++;
                         result.BoundParameters.Add(new BoundParameterInfo
                         {
@@ -599,31 +604,40 @@ public class ParameterBindingService : IParameterBindingService
 
     /// <summary>
     /// Maps APS group binding ID to Revit BuiltInParameterGroup.
-    /// APS format: autodesk.parameter.group:data-1.0.0
+    /// APS format: autodesk.parameter.group:fireProtection-1.0.0
+    /// Also handles: autodesk.revit.paramgroup.PG_DATA-1.0.0
     /// </summary>
     private static BuiltInParameterGroup GetParameterGroup(string? apsGroupId)
     {
         if (string.IsNullOrEmpty(apsGroupId))
             return BuiltInParameterGroup.PG_DATA;
 
-        var lowerGroup = apsGroupId.ToLowerInvariant();
+        string lowerGroup = apsGroupId.ToLowerInvariant();
 
-        return lowerGroup switch
+        // Extract the group name from APS format: autodesk.parameter.group:groupName-1.0.0
+        string groupName = ExtractGroupNameFromApsId(lowerGroup);
+
+        // Map to Revit BuiltInParameterGroup
+        return groupName switch
         {
             // Data group (default for COBie)
-            var g when g.Contains("data") => BuiltInParameterGroup.PG_DATA,
+            var g when g.Contains("data") && !g.Contains("identity") => BuiltInParameterGroup.PG_DATA,
 
             // Identity/Data
-            var g when g.Contains("identity") || g.Contains("constraint") => BuiltInParameterGroup.PG_IDENTITY_DATA,
+            var g when g.Contains("identity") => BuiltInParameterGroup.PG_IDENTITY_DATA,
 
-            // Geometry
-            var g when g.Contains("dimension") || g.Contains("geometry") => BuiltInParameterGroup.PG_GEOMETRY,
+            // Constraints
+            var g when g.Contains("constraint") => BuiltInParameterGroup.PG_CONSTRAINTS,
+
+            // Dimensions/Geometry
+            var g when g.Contains("dimension") => BuiltInParameterGroup.PG_GEOMETRY,
+            var g when g.Contains("geometry") => BuiltInParameterGroup.PG_GEOMETRY,
+
+            // Structural Analysis
+            var g when g.Contains("structural") => BuiltInParameterGroup.PG_GENERAL,
 
             // Text
-            var g when g.Contains("text") || g.Contains("title") || g.Contains("description") => BuiltInParameterGroup.PG_TEXT,
-
-            // Structural
-            var g when g.Contains("structural") || g.Contains("physics") => BuiltInParameterGroup.PG_GENERAL,
+            var g when g.Contains("text") => BuiltInParameterGroup.PG_TEXT,
 
             // Materials
             var g when g.Contains("material") => BuiltInParameterGroup.PG_MATERIALS,
@@ -643,8 +657,97 @@ public class ParameterBindingService : IParameterBindingService
             // Energy
             var g when g.Contains("energy") => BuiltInParameterGroup.PG_ENERGY_ANALYSIS,
 
+            // Lighting - map to Electrical (Lighting is often part of Electrical in Revit)
+            var g when g.Contains("lighting") => BuiltInParameterGroup.PG_ELECTRICAL,
+
+            // Loads - map to Structural Analysis
+            var g when g.Contains("load") => BuiltInParameterGroup.PG_GENERAL,
+
+            // Phasing
+            var g when g.Contains("phase") => BuiltInParameterGroup.PG_PHASING,
+
+            // Reinforcement
+            var g when g.Contains("rebar") || g.Contains("reinforcement") => BuiltInParameterGroup.PG_GENERAL,
+
+            // Stairs and Railings - map to General
+            var g when g.Contains("stair") || g.Contains("railing") => BuiltInParameterGroup.PG_GENERAL,
+
+            // Graphics
+            var g when g.Contains("graphic") => BuiltInParameterGroup.PG_GRAPHICS,
+
+            // General
+            var g when g.Contains("general") => BuiltInParameterGroup.PG_GENERAL,
+
             // Default fallback
             _ => BuiltInParameterGroup.PG_DATA
         };
+    }
+
+    /// <summary>
+    /// Extracts the group name from an APS group ID.
+    /// Examples:
+    /// - "autodesk.parameter.group:fireProtection-1.0.0" -> "fireProtection"
+    /// - "autodesk.revit.paramgroup.PG_DATA-1.0.0" -> "PG_DATA"
+    /// </summary>
+    private static string ExtractGroupNameFromApsId(string apsGroupId)
+    {
+        if (string.IsNullOrEmpty(apsGroupId))
+            return string.Empty;
+
+        // Handle format: autodesk.parameter.group:groupName-1.0.0
+        int colonIndex = apsGroupId.IndexOf(':');
+        if (colonIndex >= 0)
+        {
+            string afterColon = apsGroupId.Substring(colonIndex + 1);
+            int dashIndex = afterColon.IndexOf('-');
+            return dashIndex > 0 ? afterColon.Substring(0, dashIndex) : afterColon;
+        }
+
+        // Handle format: autodesk.revit.paramgroup.PG_XXX-1.0.0
+        int lastDot = apsGroupId.LastIndexOf('.');
+        if (lastDot >= 0)
+        {
+            string afterDot = apsGroupId.Substring(lastDot + 1);
+            int dashIndex = afterDot.IndexOf('-');
+            return dashIndex > 0 ? afterDot.Substring(0, dashIndex) : afterDot;
+        }
+
+        return apsGroupId;
+    }
+
+    /// <summary>
+    /// Sets whether parameter values can vary between group instances.
+    /// This must be called after the parameter is bound to the document.
+    /// </summary>
+    /// <param name="document">The Revit document</param>
+    /// <param name="parameterName">The parameter name</param>
+    /// <param name="allowVary">True to allow values to vary per group instance, false to align values across instances</param>
+    private void SetVaryBetweenGroupsForParameter(Document document, string parameterName, bool allowVary)
+    {
+        try
+        {
+            // Find the ParameterElement in the document
+            var paramElements = new FilteredElementCollector(document)
+                .OfClass(typeof(ParameterElement))
+                .Cast<ParameterElement>()
+                .Where(pe => pe.Name.Equals(parameterName, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var paramElement in paramElements)
+            {
+                // Get the definition as InternalDefinition
+                if (paramElement.GetDefinition() is InternalDefinition internalDef)
+                {
+                    // Set whether values can vary between group instances
+                    // Note: SetAllowVaryBetweenGroups requires both Document and bool parameters
+                    internalDef.SetAllowVaryBetweenGroups(document, allowVary);
+                    _logger?.Info($"[Binding] Set VariesAcrossGroups={allowVary} for parameter '{parameterName}'");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't fail the entire binding operation if this fails
+            _logger?.Warn($"[Binding] Failed to set VariesAcrossGroups for parameter '{parameterName}': {ex.Message}");
+        }
     }
 }

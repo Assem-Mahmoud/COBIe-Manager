@@ -45,6 +45,55 @@
                 </Style.Triggers>
             </Style>
 
+            <!--  Enhanced DataGrid Column Header Style  -->
+            <Style x:Key="DataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="#FAFAFA" />
+                <Setter Property="Foreground" Value="#424242" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Padding" Value="12,10" />
+                <Setter Property="BorderBrush" Value="#E0E0E0" />
+                <Setter Property="BorderThickness" Value="0,0,1,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#F0F0F0" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  Enhanced DataGrid Cell Style  -->
+            <Style x:Key="DataGridCellStyle" TargetType="DataGridCell">
+                <Setter Property="BorderBrush" Value="#EEEEEE" />
+                <Setter Property="BorderThickness" Value="0,0,1,1" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="#E3F2FD" />
+                        <Setter Property="Foreground" Value="#1976D2" />
+                        <Setter Property="BorderBrush" Value="#1976D2" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  Enhanced DataGrid Row Style  -->
+            <Style x:Key="DataGridRowStyle" TargetType="DataGridRow">
+                <Setter Property="Background" Value="White" />
+                <Setter Property="Height" Value="Auto" />
+                <Setter Property="Margin" Value="0" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#F5F9FF" />
+                    </Trigger>
+                    <Trigger Property="AlternationIndex" Value="1">
+                        <Setter Property="Background" Value="#FAFAFA" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
             <!--  Modern ComboBox Style  -->
             <Style
                 x:Key="ModernComboBox"
@@ -173,9 +222,14 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
                     <materialDesign:PackIcon
                         Grid.Column="0"
+                        Grid.Row="0"
                         Width="24"
                         Height="24"
                         Margin="0,0,12,0"
@@ -183,7 +237,7 @@
                         Foreground="{StaticResource PrimaryBrush}"
                         Kind="Database" />
 
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel Grid.Column="1" Grid.Row="0" VerticalAlignment="Center" Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock
                             Margin="0,0,0,4"
                             FontWeight="SemiBold"
@@ -200,12 +254,53 @@
 
                     <Button
                         Grid.Column="2"
+                        Grid.Row="0"
                         Margin="16,0,0,0"
                         VerticalAlignment="Center"
                         Command="{Binding LoginCommand}"
                         Content="Login"
                         Style="{StaticResource PrimaryActionButton}"
                         Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+                    <!--  Parameter Options Row  -->
+                    <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1"
+                                Margin="0,12,0,0"
+                                Orientation="Horizontal"
+                                Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <materialDesign:PackIcon
+                            Width="20"
+                            Height="20"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Kind="Settings" />
+                        <TextBlock
+                            Margin="0,0,16,0"
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource SecondaryTextBrush}"
+                            Text="Parameter Options:" />
+                        <CheckBox
+                            VerticalAlignment="Center"
+                            Content="Values can vary per group instance"
+                            IsChecked="{Binding VariesAcrossGroups, Mode=TwoWay}"
+                            Style="{StaticResource MaterialDesignCheckBox}">
+                            <CheckBox.ToolTip>
+                                <ToolTip Content="When unchecked, values are aligned across all group instances (recommended for COBie). When checked, each group instance can have different values." />
+                            </CheckBox.ToolTip>
+                        </CheckBox>
+                        <materialDesign:PackIcon
+                            Width="16"
+                            Height="16"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource InfoBrush}"
+                            Kind="Information">
+                            <materialDesign:PackIcon.ToolTip>
+                                <ToolTip Content="Controls whether parameter values are the same or can vary across Revit model group instances.&#x0a;&#x0a;Unchecked (default): All group instances share the same value - changing one changes all.&#x0a;Checked: Each group instance can have a different value." />
+                            </materialDesign:PackIcon.ToolTip>
+                        </materialDesign:PackIcon>
+                    </StackPanel>
                 </Grid>
             </materialDesign:Card>
 
@@ -288,26 +383,42 @@
                         </Border>
                     </StackPanel>
 
-                    <!--  Selection Counter  -->
+                    <!--  Selection Counter Badge  -->
                     <StackPanel
                         Grid.Column="1"
                         HorizontalAlignment="Right"
                         Orientation="Horizontal"
                         Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Border Style="{StaticResource InfoBadge}">
+                        <!-- Prominent selected count badge -->
+                        <Border
+                            Background="{StaticResource PrimaryBrush}"
+                            CornerRadius="12"
+                            Padding="12,0"
+                            Height="35"
+                            Visibility="{Binding SelectedCount, Converter={StaticResource IntegerToVisibilityConverter}}">
                             <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="16"
+                                    Height="16"
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    Kind="CheckCircle" />
                                 <TextBlock
-                                    FontWeight="Bold"
-                                    Style="{StaticResource InfoBadgeText}"
-                                    Text="{Binding SelectedCount}" />
-                                <TextBlock Style="{StaticResource InfoBadgeText}" Text=" / " />
-                                <TextBlock Style="{StaticResource InfoBadgeText}" Text="{Binding FilteredCount}" />
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="White"
+                                    Text="{Binding SelectedCount}"
+                                    VerticalAlignment="Center" />
                                 <TextBlock
-                                    Margin="4,0,0,0"
-                                    Style="{StaticResource InfoBadgeText}"
-                                    Text=" selected" />
+                                    FontSize="13"
+                                    Foreground="White"
+                                    Text=" selected"
+                                    VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>
+
+                
                     </StackPanel>
                 </Grid>
             </materialDesign:Card>
@@ -337,8 +448,9 @@
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn
                                 Width="50"
-                                Binding="{Binding IsSelected, Mode=TwoWay}"
-                                ElementStyle="{StaticResource MaterialDesignCheckBox}" />
+                                Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ElementStyle="{StaticResource MaterialDesignCheckBox}"
+                                EditingElementStyle="{StaticResource MaterialDesignCheckBox}" />
                             <DataGridTextColumn
                                 Header="Parameter Name"
                                 Width="*"
@@ -356,8 +468,13 @@
                                 Binding="{Binding DataTypeDisplay}"
                                 FontSize="12" />
                             <DataGridTextColumn
+                                Header="Inst./Type"
+                                Width="100"
+                                Binding="{Binding InstanceTypeDisplay}"
+                                FontSize="12" />
+                            <DataGridTextColumn
                                 Header="Group"
-                                Width="120"
+                                Width="140"
                                 Binding="{Binding GroupDisplay}"
                                 FontSize="12" />
                         </DataGrid.Columns>

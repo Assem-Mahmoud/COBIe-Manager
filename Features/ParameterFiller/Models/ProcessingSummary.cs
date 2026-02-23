@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
+using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Models;
 
 namespace COBIeManager.Features.ParameterFiller.Models
@@ -75,6 +76,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// Room fill summary (when FillMode is RoomOnly)
         /// </summary>
         public RoomFillSummary RoomFillSummary { get; set; }
+
+        /// <summary>
+        /// Scope box fill summary (when FillMode includes scope box fill)
+        /// </summary>
+        public ScopeBoxFillSummary ScopeBoxFillSummary { get; set; }
 
         /// <summary>
         /// Time taken for the operation
@@ -184,6 +190,33 @@ namespace COBIeManager.Features.ParameterFiller.Models
                          $"  - Parameter Read-Only: {RoomFillSummary.SkippedParameterReadOnly}\n" +
                          $"  - Value Exists: {RoomFillSummary.SkippedValueExists}\n" +
                          $"Processing Duration: {RoomFillSummary.ProcessingDuration.TotalSeconds:F2} seconds";
+            }
+
+            // Add scope box fill summary if available
+            if (ScopeBoxFillSummary != null)
+            {
+                result += $"\n\nScope Box Fill Summary:\n" +
+                         $"-----------------------\n" +
+                         $"Scope Box: {ScopeBoxFillSummary.ScopeBoxName}\n" +
+                         $"Fill Value: {ScopeBoxFillSummary.FillValue}\n" +
+                         $"Elements Found: {ScopeBoxFillSummary.ElementsFound}\n" +
+                         $"Parameters Filled: {ScopeBoxFillSummary.ParametersFilled}\n" +
+                         $"Parameters Skipped: {ScopeBoxFillSummary.ParametersSkipped}\n" +
+                         $"Errors: {ScopeBoxFillSummary.Errors}\n" +
+                         $"Processing Duration: {ScopeBoxFillSummary.ProcessingDuration.TotalSeconds:F2} seconds";
+
+                if (ScopeBoxFillSummary.Errors > 0 && ScopeBoxFillSummary.ErrorMessages.Any())
+                {
+                    result += "\nError Messages:\n";
+                    foreach (var error in ScopeBoxFillSummary.ErrorMessages.Take(5))
+                    {
+                        result += $"  - {error}\n";
+                    }
+                    if (ScopeBoxFillSummary.ErrorMessages.Count > 5)
+                    {
+                        result += $"  ... (+{ScopeBoxFillSummary.ErrorMessages.Count - 5} more)\n";
+                    }
+                }
             }
 
             return result;

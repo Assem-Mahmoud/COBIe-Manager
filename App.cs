@@ -216,6 +216,9 @@ namespace COBIeManager
                     return new RoomFillService(logger, roomService);
                 });
 
+                logger.Info("Registering IScopeBoxAssignmentService singleton...");
+                services.RegisterSingleton<IScopeBoxAssignmentService>(new ScopeBoxAssignmentService(logger));
+
                 logger.Info("Registering IParameterFillService singleton...");
                 services.AddSingleton<IParameterFillService>(sp =>
                 {
@@ -223,6 +226,7 @@ namespace COBIeManager
                     var roomService = sp.GetService<IRoomAssignmentService>();
                     var boxIdService = sp.GetService<IBoxIdFillService>();
                     var roomFillService = sp.GetService<IRoomFillService>();
+                    var scopeBoxService = sp.GetService<IScopeBoxAssignmentService>();
                     if (levelService == null)
                         throw new InvalidOperationException("Failed to resolve ILevelAssignmentService during IParameterFillService registration");
                     if (roomService == null)
@@ -231,7 +235,9 @@ namespace COBIeManager
                         throw new InvalidOperationException("Failed to resolve IBoxIdFillService during IParameterFillService registration");
                     if (roomFillService == null)
                         throw new InvalidOperationException("Failed to resolve IRoomFillService during IParameterFillService registration");
-                    return new ParameterFillService(logger, levelService, roomService, boxIdService, roomFillService);
+                    if (scopeBoxService == null)
+                        throw new InvalidOperationException("Failed to resolve IScopeBoxAssignmentService during IParameterFillService registration");
+                    return new ParameterFillService(logger, levelService, roomService, boxIdService, roomFillService, scopeBoxService);
                 });
 
                 logger.Info("Registering IProcessingLogger singleton...");

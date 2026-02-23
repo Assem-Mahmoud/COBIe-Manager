@@ -43,6 +43,9 @@ public partial class CobieParametersViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
+    // Track selected parameters across collections (preserves selections when switching collections)
+    private readonly HashSet<string> _selectedParameterIds = new();
+
     [ObservableProperty]
     private bool _isAuthenticated;
 
@@ -52,8 +55,16 @@ public partial class CobieParametersViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
+    /// <summary>
+    /// When false, parameter values are aligned across group instances (default - recommended for COBie).
+    /// When true, parameter values can vary per group instance.
+    /// This controls the "values are aligned per group" option in Revit.
+    /// </summary>
+    [ObservableProperty]
+    private bool _variesAcrossGroups = false;
+
     // Computed properties for UI binding
-    public int SelectedCount => SelectedParameters.Count;
+    public int SelectedCount => _selectedParameterIds.Count;
     public int TotalCount => Parameters.Count;
     public int FilteredCount => FilteredParameters.Count;
     public bool HasNoParameters => Parameters.Count == 0;
@@ -93,20 +104,26 @@ public partial class CobieParametersViewModel : ObservableObject
         FilteredParameters = new ObservableCollection<SelectableParameter>();
         Collections = new ObservableCollection<ApsCollection>();
 
-        // Subscribe to collection changes to track selection changes
+        // Helper method to subscribe to PropertyChanged for a parameter
+        void SubscribeToParameter(SelectableParameter item)
+        {
+            item.PropertyChanged += (sender, args) =>
+            {
+                if (args.PropertyName == nameof(SelectableParameter.IsSelected))
+                {
+                    UpdateSelectedParameters(item);
+                }
+            };
+        }
+
+        // Subscribe to Parameters collection changes
         Parameters.CollectionChanged += (s, e) =>
         {
             if (e.NewItems != null)
             {
                 foreach (SelectableParameter item in e.NewItems)
                 {
-                    item.PropertyChanged += (sender, args) =>
-                    {
-                        if (args.PropertyName == nameof(SelectableParameter.IsSelected))
-                        {
-                            UpdateSelectedParameters(item);
-                        }
-                    };
+                    SubscribeToParameter(item);
                 }
             }
 
@@ -114,6 +131,22 @@ public partial class CobieParametersViewModel : ObservableObject
             OnPropertyChanged(nameof(HasNoParameters));
             OnPropertyChanged(nameof(HasNoParametersAndNotLoading));
             OnPropertyChanged(nameof(TotalCount));
+        };
+
+        // Subscribe to FilteredParameters collection changes (for DataGrid binding)
+        FilteredParameters.CollectionChanged += (s, e) =>
+        {
+            if (e.NewItems != null)
+            {
+                foreach (SelectableParameter item in e.NewItems)
+                {
+                    // Only subscribe if not already subscribed (avoid duplicate subscriptions)
+                    if (!Parameters.Contains(item))
+                    {
+                        SubscribeToParameter(item);
+                    }
+                }
+            }
         };
 
         // Check authentication status on load
@@ -245,6 +278,7 @@ public partial class CobieParametersViewModel : ObservableObject
         Collections.Clear();
         Parameters.Clear();
         SelectedParameters.Clear();
+        _selectedParameterIds.Clear();
         StatusMessage = "Logged out successfully";
     }
 
@@ -397,11 +431,11 @@ public partial class CobieParametersViewModel : ObservableObject
 
     partial void OnSelectedCollectionChanged(ApsCollection? value)
     {
-        // Auto-load parameters when collection is selected
+        // Clear the displayed parameters when collection changes
+        // DO NOT clear SelectedParameters or _selectedParameterIds - we want to accumulate selections
         Parameters.Clear();
-        SelectedParameters.Clear();
         FilteredParameters.Clear();
-        SearchText = string.Empty; // Clear search when collection changes
+        SearchText = string.Empty;
 
         if (value != null)
         {
@@ -440,8 +474,11 @@ public partial class CobieParametersViewModel : ObservableObject
                 FixedHubId,
                 SelectedCollection.Id));
 
+            // Clear displayed parameters
             Parameters.Clear();
+            FilteredParameters.Clear();
 
+            // Add all new parameters to Parameters (this will subscribe to their PropertyChanged events)
             foreach (var param in response.Parameters)
             {
                 var selectableParam = new SelectableParameter { Parameter = param };
@@ -449,9 +486,21 @@ public partial class CobieParametersViewModel : ObservableObject
                 FilteredParameters.Add(selectableParam);
             }
 
+            // Now restore selection state by setting IsSelected on previously selected parameters
+            // This will trigger UpdateSelectedParameters via the PropertyChanged subscription
+            foreach (var selectableParam in Parameters)
+            {
+                if (_selectedParameterIds.Contains(selectableParam.Id))
+                {
+                    selectableParam.IsSelected = true;
+                }
+            }
+
             var cacheStatus = response.Cached ? " (cached)" : "";
-            StatusMessage = $"Loaded {Parameters.Count} COBie parameters{cacheStatus}";
-            _logger?.Info($"[ViewModel] Loaded {Parameters.Count} parameters");
+            var selectedFromCollection = Parameters.Count(p => p.IsSelected);
+            StatusMessage = $"Loaded {Parameters.Count} COBie parameters{cacheStatus} from '{SelectedCollection.Name}'. " +
+                           $"{SelectedParameters.Count} total selected across collections.";
+            _logger?.Info($"[ViewModel] Loaded {Parameters.Count} parameters, {selectedFromCollection} were already selected");
         }
         catch (RefreshTokenExpiredException)
         {
@@ -601,10 +650,10 @@ public partial class CobieParametersViewModel : ObservableObject
                 // Create parameters
                 creationResult = creationService.CreateParameters(document, definitionsToCreate);
 
-                // Bind parameters to categories
+                // Bind parameters to categories with the VariesAcrossGroups setting
                 LoadingOverlayService.UpdateMessage($"Binding {definitionsToCreate.Count} parameters to categories...", "This may take a moment...");
                 await Task.Delay(30);
-                bindingResult = bindingService.BindParameters(document, definitionsToCreate);
+                bindingResult = bindingService.BindParameters(document, definitionsToCreate, variesAcrossGroups: VariesAcrossGroups);
 
                 transaction.Commit();
             }
@@ -701,20 +750,28 @@ public partial class CobieParametersViewModel : ObservableObject
     [RelayCommand]
     private void DeselectAll()
     {
+        // Deselect all currently visible parameters
+        // Do NOT clear _selectedParameterIds - we want to keep selections from other collections
         foreach (var param in Parameters)
         {
             param.IsSelected = false;
         }
-        SelectedParameters.Clear();
+        // Note: We don't clear SelectedParameters or _selectedParameterIds here
+        // The UpdateSelectedParameters method will handle removing the deselected items
     }
 
     /// <summary>
     /// Updates the SelectedParameters collection when a parameter's IsSelected property changes.
+    /// Also tracks selected parameter IDs to preserve selections when switching collections.
     /// </summary>
     private void UpdateSelectedParameters(SelectableParameter parameter)
     {
         if (parameter.IsSelected)
         {
+            if (!_selectedParameterIds.Contains(parameter.Id))
+            {
+                _selectedParameterIds.Add(parameter.Id);
+            }
             if (!SelectedParameters.Contains(parameter))
             {
                 SelectedParameters.Add(parameter);
@@ -722,7 +779,13 @@ public partial class CobieParametersViewModel : ObservableObject
         }
         else
         {
-            SelectedParameters.Remove(parameter);
+            _selectedParameterIds.Remove(parameter.Id);
+            // Remove from SelectedParameters - use FirstOrDefault to find by reference
+            var itemToRemove = SelectedParameters.FirstOrDefault(p => p == parameter);
+            if (itemToRemove != null)
+            {
+                SelectedParameters.Remove(itemToRemove);
+            }
         }
 
         // Notify that computed properties have changed

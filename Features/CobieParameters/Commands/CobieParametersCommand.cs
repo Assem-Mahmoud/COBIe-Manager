@@ -26,11 +26,26 @@ public class CobieParametersCommand : IExternalCommand
         // Install assembly resolver to help find MaterialDesignThemes and other DLLs
         EnsureAssemblyResolverInstalled();
 
-        var uiDoc = commandData.Application.ActiveUIDocument;
-        var task = ShowCobieParametersWindowAsync(uiDoc);
-        task.Wait();
+        try
+        {
+            var uiDoc = commandData.Application.ActiveUIDocument;
+            var task = ShowCobieParametersWindowAsync(uiDoc);
+            task.Wait();
 
-        return Result.Succeeded;
+            return Result.Succeeded;
+        }
+        catch (AggregateException ex)
+        {
+            // Unwrap the inner exception for better debugging
+            var innerEx = ex.InnerException ?? ex;
+            message = $"Error: {innerEx.Message}\n\nStack: {innerEx.StackTrace}";
+            return Result.Failed;
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}\n\nStack: {ex.StackTrace}";
+            return Result.Failed;
+        }
     }
 
     private async System.Threading.Tasks.Task ShowCobieParametersWindowAsync(UIDocument uiDoc)

@@ -5,6 +5,7 @@
     xmlns:controls="clr-namespace:COBIeManager.Shared.Controls"
     xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:models="clr-namespace:COBIeManager.Features.ParameterFiller.Models"
     xmlns:viewModels="clr-namespace:COBIeManager.Features.ParameterFiller.ViewModels"
     Title="Auto-Fill Parameters"
     Width="1200"
@@ -28,6 +29,10 @@
             <converters:EnumToBooleanConverter x:Key="EnumToBooleanConverter" />
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
             <converters:FlagsToBooleanConverter x:Key="FlagsToBooleanConverter" />
+            <converters:ModeToVisibilityConverter x:Key="ModeToVisibilityConverter" />
+            <converters:ScopeBoxModeToVisibilityConverter x:Key="ScopeBoxModeToVisibilityConverter" />
+            <converters:MillimetersToFeetConverter x:Key="MillimetersToFeetConverter" />
+            <converters:ContainsElementIdConverter x:Key="ContainsElementIdConverter" />
 
             <!--  Modern ComboBox Style  -->
             <Style
@@ -99,16 +104,14 @@
                     </Grid>
                 </materialDesign:Card>
 
-                <!--  Main Content - 4 Columns  -->
+                <!--  Main Content - 3 Columns  -->
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="8" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="8" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="2*" />
                     </Grid.ColumnDefinitions>
 
                     <!--  Column 1: Categories  -->
@@ -380,78 +383,18 @@
                         </Grid>
                     </materialDesign:Card>
 
-                    <!--  Column 3: Level & Options  -->
+                    <!--  Column 3: Options  -->
                     <materialDesign:Card Grid.Column="4" Style="{StaticResource SectionCard}">
                         <Grid Margin="12,10">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Configuration" />
-
-                            <!--  Level Selection  -->
-                            <Border
-                                Grid.Row="1"
-                                Margin="0,0,0,12"
-                                Padding="8,6"
-                                Background="White"
-                                BorderBrush="#E0E0E0"
-                                BorderThickness="1"
-                                CornerRadius="3">
-                                <StackPanel>
-                                    <TextBlock FontSize="11" FontWeight="SemiBold" Text="Level Range" />
-
-                                    <Grid Margin="0,6,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="24" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock
-                                                Margin="0,0,0,2"
-                                                FontSize="10"
-                                                Foreground="{StaticResource SecondaryTextBrush}"
-                                                Text="From" />
-                                            <ComboBox
-                                                DisplayMemberPath="Name"
-                                                FontSize="12"
-                                                ItemsSource="{Binding Levels}"
-                                                SelectedItem="{Binding Config.BaseLevel, Mode=TwoWay}"
-                                                        Style="{StaticResource ModernComboBox}" />
-                                        </StackPanel>
-
-                                        <materialDesign:PackIcon
-                                            Grid.Column="1"
-                                            Width="16"
-                                            Height="16"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Foreground="{StaticResource PrimaryBrush}"
-                                            Kind="ArrowRight" />
-
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock
-                                                Margin="0,0,0,2"
-                                                FontSize="10"
-                                                Foreground="{StaticResource SecondaryTextBrush}"
-                                                Text="To" />
-                                            <ComboBox
-                                                DisplayMemberPath="Name"
-                                                FontSize="12"
-                                                ItemsSource="{Binding Levels}"
-                                                SelectedItem="{Binding Config.TopLevel, Mode=TwoWay}"
-                                                        Style="{StaticResource ModernComboBox}" />
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
+                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Options" />
 
                             <!--  Options  -->
-                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
                                     <!--  Overwrite Option  -->
                                     <Border
@@ -464,7 +407,7 @@
                                         <CheckBox
                                             Content="Overwrite existing values"
                                             FontSize="12"
-                                            IsChecked="{Binding Config.OverwriteExisting, Mode=TwoWay}"
+                                            IsChecked="{Binding Config.General.OverwriteExisting, Mode=TwoWay}"
                                             ToolTip="When enabled, existing parameter values will be overwritten" />
                                     </Border>
 
@@ -501,63 +444,302 @@
 
                                             <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding AvailableFillModes}">
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
+                                                    <DataTemplate DataType="{x:Type models:FillModeItem}">
                                                         <Border
-                                                            Margin="0,0,0,4"
-                                                            Padding="8,6"
-                                                            Background="#F9F9F9"
+                                                            Margin="0,0,0,6"
+                                                            Padding="0"
+                                                            Background="Transparent"
                                                             BorderBrush="#E0E0E0"
                                                             BorderThickness="1"
                                                             CornerRadius="4">
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-
-                                                                <CheckBox
-                                                                    Grid.Column="0"
-                                                                    VerticalAlignment="Center"
-                                                                    IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                    Style="{StaticResource MaterialDesignCheckBox}" />
-
-                                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                                    <TextBlock
-                                                                        FontSize="11"
-                                                                        FontWeight="SemiBold"
-                                                                        Text="{Binding DisplayName}" />
-                                                                    <TextBlock
-                                                                        FontSize="9"
-                                                                        Foreground="#757575"
-                                                                        Text="{Binding Description}"
-                                                                        TextTrimming="CharacterEllipsis" />
-                                                                </StackPanel>
-
-                                                                <materialDesign:PackIcon
-                                                                    Grid.Column="2"
-                                                                    Width="18"
-                                                                    Height="18"
-                                                                    VerticalAlignment="Center"
-                                                                    Foreground="#757575"
-                                                                    Kind="{Binding IconKind}"
-                                                                    ToolTip="{Binding MappedParameterCount, StringFormat={}{0} parameters mapped}" />
-
-                                                                <!--  Mapped Parameter Count Badge  -->
+                                                            <StackPanel>
+                                                                <!-- Mode Header -->
                                                                 <Border
-                                                                    Grid.Column="2"
-                                                                    Margin="0,0,24,0"
-                                                                    Padding="6,2"
-                                                                    Background="#E0E0E0"
-                                                                    CornerRadius="10"
-                                                                    Visibility="{Binding HasMappedParameters, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                    <TextBlock
-                                                                        FontSize="9"
-                                                                        FontWeight="SemiBold"
-                                                                        Foreground="#424242"
-                                                                        Text="{Binding MappedParameterCount, StringFormat={}{0}}" />
+                                                                    Padding="8,6"
+                                                                    Background="#F9F9F9"
+                                                                    CornerRadius="4,4,0,0">
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+
+                                                                        <CheckBox
+                                                                            Grid.Column="0"
+                                                                            VerticalAlignment="Center"
+                                                                            IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                            Style="{StaticResource MaterialDesignCheckBox}" />
+
+                                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                                            <TextBlock
+                                                                                FontSize="11"
+                                                                                FontWeight="SemiBold"
+                                                                                Text="{Binding DisplayName}" />
+                                                                            <TextBlock
+                                                                                FontSize="9"
+                                                                                Foreground="#757575"
+                                                                                Text="{Binding Description}"
+                                                                                TextTrimming="CharacterEllipsis" />
+                                                                        </StackPanel>
+
+                                                                        <materialDesign:PackIcon
+                                                                            Grid.Column="2"
+                                                                            Width="18"
+                                                                            Height="18"
+                                                                            VerticalAlignment="Center"
+                                                                            Foreground="#757575"
+                                                                            Kind="{Binding IconKind}"
+                                                                            ToolTip="{Binding MappedParameterCount, StringFormat={}{0} parameters mapped}" />
+
+                                                                        <Border
+                                                                            Grid.Column="2"
+                                                                            Margin="0,0,24,0"
+                                                                            Padding="6,2"
+                                                                            Background="#E0E0E0"
+                                                                            CornerRadius="10"
+                                                                            Visibility="{Binding HasMappedParameters, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                            <TextBlock
+                                                                                FontSize="9"
+                                                                                FontWeight="SemiBold"
+                                                                                Foreground="#424242"
+                                                                                Text="{Binding MappedParameterCount, StringFormat={}{0}}" />
+                                                                        </Border>
+                                                                    </Grid>
                                                                 </Border>
-                                                            </Grid>
+
+                                                                <!-- Mode-Specific Settings Panel -->
+                                                                <Border
+                                                                    Padding="12,8"
+                                                                    Background="White"
+                                                                    BorderBrush="#E0E0E0"
+                                                                    BorderThickness="1,0,1,1"
+                                                                    CornerRadius="0,0,4,4"
+                                                                    Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <StackPanel>
+                                                                        <!-- Level Mode Settings -->
+                                                                        <StackPanel>
+                                                                            <StackPanel.Visibility>
+                                                                                <MultiBinding Converter="{StaticResource ModeToVisibilityConverter}">
+                                                                                    <Binding Path="IsSelected" />
+                                                                                    <Binding Path="Mode" />
+                                                                                </MultiBinding>
+                                                                            </StackPanel.Visibility>
+
+                                                                            <!-- Base and Top Level Comboboxes -->
+                                                                            <Grid Margin="0,0,0,8">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="8" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                </Grid.ColumnDefinitions>
+
+                                                                                <StackPanel Grid.Column="0">
+                                                                                    <TextBlock
+                                                                                        Margin="0,0,0,2"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Base Level" />
+                                                                                    <ComboBox
+                                                                                        DisplayMemberPath="Name"
+                                                                                        FontSize="11"
+                                                                                        ItemsSource="{Binding DataContext.Levels, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                        SelectedItem="{Binding DataContext.Config.LevelMode.BaseLevel, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                                                                        Style="{StaticResource ModernComboBox}" />
+                                                                                </StackPanel>
+
+                                                                                <StackPanel Grid.Column="2">
+                                                                                    <TextBlock
+                                                                                        Margin="0,0,0,2"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Top Level" />
+                                                                                    <ComboBox
+                                                                                        DisplayMemberPath="Name"
+                                                                                        FontSize="11"
+                                                                                        ItemsSource="{Binding DataContext.Levels, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                                        SelectedItem="{Binding DataContext.Config.LevelMode.TopLevel, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                                                                        Style="{StaticResource ModernComboBox}" />
+                                                                                </StackPanel>
+                                                                            </Grid>
+
+                                                                            <!-- Custom Level Name - Full Width -->
+                                                                            <StackPanel>
+                                                                                <TextBlock
+                                                                                    Margin="0,0,0,2"
+                                                                                    FontSize="10"
+                                                                                    Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                    Text="Custom Level Name (optional)" />
+                                                                                <Border
+                                                                                    Padding="8,6"
+                                                                                    Background="White"
+                                                                                    BorderBrush="#E0E0E0"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="3">
+                                                                                    <Grid>
+                                                                                        <TextBlock
+                                                                                            Margin="8,0"
+                                                                                            VerticalAlignment="Center"
+                                                                                            FontSize="11"
+                                                                                            Foreground="#9E9E9E"
+                                                                                            IsHitTestVisible="False"
+                                                                                            Text="Leave empty to use Revit level name"
+                                                                                            Visibility="{Binding DataContext.Config.LevelMode.CustomLevelName, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                                                                        <TextBox
+                                                                                            Padding="8,4"
+                                                                                            VerticalAlignment="Center"
+                                                                                            FontSize="11"
+                                                                                            Text="{Binding DataContext.Config.LevelMode.CustomLevelName, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                            ToolTip="Enter a custom name to use instead of the Revit level name. Leave empty to use the Revit level name." />
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </StackPanel>
+
+                                                                            <!-- Tolerance Settings -->
+                                                                            <Grid Margin="0,8,0,0">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                    <ColumnDefinition Width="8" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                </Grid.ColumnDefinitions>
+
+                                                                                <StackPanel Grid.Column="0">
+                                                                                    <TextBlock
+                                                                                        Margin="0,0,0,2"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Base Tolerance (mm)" />
+                                                                                    <Border
+                                                                                        Padding="8,6"
+                                                                                        Background="White"
+                                                                                        BorderBrush="#E0E0E0"
+                                                                                        BorderThickness="1"
+                                                                                        CornerRadius="3">
+                                                                                        <TextBox
+                                                                                            Padding="8,4"
+                                                                                            VerticalAlignment="Center"
+                                                                                            FontSize="11"
+                                                                                            Text="{Binding DataContext.Config.LevelMode.BaseTolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
+                                                                                            ToolTip="Extends the base level downward. Elements must be completely inside the extended range (base - tolerance to top + top tolerance)." />
+                                                                                    </Border>
+                                                                                </StackPanel>
+
+                                                                                <StackPanel Grid.Column="2">
+                                                                                    <TextBlock
+                                                                                        Margin="0,0,0,2"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Top Tolerance (mm)" />
+                                                                                    <Border
+                                                                                        Padding="8,6"
+                                                                                        Background="White"
+                                                                                        BorderBrush="#E0E0E0"
+                                                                                        BorderThickness="1"
+                                                                                        CornerRadius="3">
+                                                                                        <TextBox
+                                                                                            Padding="8,4"
+                                                                                            VerticalAlignment="Center"
+                                                                                            FontSize="11"
+                                                                                            Text="{Binding DataContext.Config.LevelMode.TopTolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
+                                                                                            ToolTip="Extends the top level upward. Elements must be completely inside the extended range (base - base tolerance to top + tolerance)." />
+                                                                                    </Border>
+                                                                                </StackPanel>
+                                                                            </Grid>
+                                                                        </StackPanel>
+
+                                                                        <!-- Scope Box Mode Settings -->
+                                                                        <StackPanel>
+                                                                            <StackPanel.Visibility>
+                                                                                <MultiBinding Converter="{StaticResource ScopeBoxModeToVisibilityConverter}">
+                                                                                    <Binding Path="IsSelected" />
+                                                                                    <Binding Path="Mode" />
+                                                                                </MultiBinding>
+                                                                            </StackPanel.Visibility>
+
+                                                                            <!-- Scope Box Multi-Selection -->
+                                                                            <StackPanel Margin="0,0,0,8">
+                                                                                <Grid Margin="0,0,0,2">
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="*" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                    </Grid.ColumnDefinitions>
+
+                                                                                    <TextBlock
+                                                                                        Grid.Column="0"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Select Scope Boxes" />
+
+                                                                                    <TextBlock
+                                                                                        Grid.Column="1"
+                                                                                        FontSize="10"
+                                                                                        Foreground="#757575">
+                                                                                        <Run Text="Selected:" />
+                                                                                        <Run FontWeight="SemiBold" Text="{Binding DataContext.Config.ScopeBoxMode.SelectedScopeBoxIds.Count, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                                                                                    </TextBlock>
+                                                                                </Grid>
+
+                                                                                <Border
+                                                                                    Background="White"
+                                                                                    BorderBrush="#E0E0E0"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="3">
+                                                                                    <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                                                                        <ItemsControl ItemsSource="{Binding DataContext.ScopeBoxes, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <CheckBox
+                                                                                                        Content="{Binding Name}"
+                                                                                                        FontSize="11"
+                                                                                                        Padding="8,4"
+                                                                                                        Tag="{Binding}">
+                                                                                                        <CheckBox.Style>
+                                                                                                            <Style TargetType="CheckBox">
+                                                                                                                <Setter Property="IsChecked">
+                                                                                                                    <Setter.Value>
+                                                                                                                        <MultiBinding Converter="{StaticResource ContainsElementIdConverter}" Mode="OneWay">
+                                                                                                                            <Binding Path="DataContext.Config.ScopeBoxMode.SelectedScopeBoxIds" RelativeSource="{RelativeSource AncestorType=Window}" Mode="OneWay" />
+                                                                                                                            <Binding Path="Tag.Id" RelativeSource="{RelativeSource Self}" Mode="OneWay" />
+                                                                                                                        </MultiBinding>
+                                                                                                                    </Setter.Value>
+                                                                                                                </Setter>
+                                                                                                                <EventSetter Event="Checked" Handler="ScopeBoxCheckBox_Checked" />
+                                                                                                                <EventSetter Event="Unchecked" Handler="ScopeBoxCheckBox_Unchecked" />
+                                                                                                            </Style>
+                                                                                                        </CheckBox.Style>
+                                                                                                    </CheckBox>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </ScrollViewer>
+                                                                                </Border>
+                                                                            </StackPanel>
+
+                                                                            <!-- Tolerance Setting -->
+                                                                            <StackPanel>
+                                                                                <TextBlock
+                                                                                    Margin="0,0,0,2"
+                                                                                    FontSize="10"
+                                                                                    Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                    Text="Tolerance (mm)" />
+                                                                                <Border
+                                                                                    Padding="8,6"
+                                                                                    Background="White"
+                                                                                    BorderBrush="#E0E0E0"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="3">
+                                                                                    <TextBox
+                                                                                        Padding="8,4"
+                                                                                        VerticalAlignment="Center"
+                                                                                        FontSize="11"
+                                                                                        Text="{Binding DataContext.Config.ScopeBoxMode.Tolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
+                                                                                        ToolTip="Extends the scope box bounds in all directions. Elements must be completely inside the extended range." />
+                                                                                </Border>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </StackPanel>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
@@ -588,181 +770,6 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </materialDesign:Card>
-
-                    <!--  Column 4: Future Enhancements  -->
-                    <materialDesign:Card Grid.Column="6" Style="{StaticResource SectionCard}">
-                        <Grid Margin="12,10">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Style="{StaticResource SectionHeader}" Text="Advanced Options" />
-
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                                <StackPanel>
-                                    <!--  Filter Options Section  -->
-                                    <Border
-                                        Margin="0,0,0,8"
-                                        Padding="10,8"
-                                        Background="White"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="1"
-                                        CornerRadius="3">
-                                        <StackPanel>
-                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Element Filters" />
-
-                                            <CheckBox
-                                                Margin="0,6,0,0"
-                                                Content="By room"
-                                                FontSize="11"
-                                                IsEnabled="False"
-                                                Opacity="0.6" />
-
-                                            <CheckBox
-                                                Margin="0,4,0,0"
-                                                Content="By phase"
-                                                FontSize="11"
-                                                IsEnabled="False"
-                                                Opacity="0.6" />
-
-                                            <CheckBox
-                                                Margin="0,4,0,0"
-                                                Content="By design option"
-                                                FontSize="11"
-                                                IsEnabled="False"
-                                                Opacity="0.6" />
-
-                                            <TextBlock
-                                                Margin="0,6,0,0"
-                                                FontSize="9"
-                                                FontStyle="Italic"
-                                                Foreground="#9E9E9E"
-                                                Text="Coming soon..." />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!--  Naming Convention Section  -->
-                                    <Border
-                                        Margin="0,0,0,8"
-                                        Padding="10,8"
-                                        Background="White"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="1"
-                                        CornerRadius="3">
-                                        <StackPanel>
-                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Naming Convention" />
-
-                                            <CheckBox
-                                                Margin="0,6,0,0"
-                                                Content="Apply pattern"
-                                                FontSize="11"
-                                                IsEnabled="False"
-                                                Opacity="0.6" />
-
-                                            <Border
-                                                Margin="0,6,0,0"
-                                                Padding="6,4"
-                                                Background="#F5F5F5"
-                                                BorderBrush="#E0E0E0"
-                                                BorderThickness="1"
-                                                CornerRadius="2"
-                                                IsEnabled="False"
-                                                Opacity="0.6">
-                                                <TextBlock
-                                                    FontFamily="Consolas"
-                                                    FontSize="9"
-                                                    Foreground="#757575"
-                                                    Text="{Binding Config.ParameterMapping.LevelParameter}" />
-                                            </Border>
-
-                                            <TextBlock
-                                                Margin="0,4,0,0"
-                                                FontSize="9"
-                                                FontStyle="Italic"
-                                                Foreground="#9E9E9E"
-                                                Text="Coming soon..." />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!--  Batch Operations Section  -->
-                                    <Border
-                                        Margin="0,0,0,8"
-                                        Padding="10,8"
-                                        Background="White"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="1"
-                                        CornerRadius="3">
-                                        <StackPanel>
-                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Batch Operations" />
-
-                                            <Button
-                                                Width="100"
-                                                Height="28"
-                                                Margin="0,6,0,0"
-                                                HorizontalAlignment="Left"
-                                                Content="Clear All"
-                                                FontSize="10"
-                                                IsEnabled="False"
-                                                Opacity="0.6"
-                                                Style="{StaticResource MaterialDesignOutlinedButton}" />
-
-                                            <Button
-                                                Width="100"
-                                                Height="28"
-                                                Margin="0,4,0,0"
-                                                HorizontalAlignment="Left"
-                                                Content="Export Config"
-                                                FontSize="10"
-                                                IsEnabled="False"
-                                                Opacity="0.6"
-                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
-
-                                            <TextBlock
-                                                Margin="0,4,0,0"
-                                                FontSize="9"
-                                                FontStyle="Italic"
-                                                Foreground="#9E9E9E"
-                                                Text="Coming soon..." />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!--  Quick Actions Section  -->
-                                    <Border
-                                        Padding="10,8"
-                                        Background="White"
-                                        BorderBrush="#E0E0E0"
-                                        BorderThickness="1"
-                                        CornerRadius="3">
-                                        <StackPanel>
-                                            <TextBlock FontSize="11" FontWeight="SemiBold" Text="Quick Actions" />
-
-                                            <Button
-                                                Width="100"
-                                                Height="28"
-                                                Margin="0,6,0,0"
-                                                HorizontalAlignment="Left"
-                                                Command="{Binding PreviewCommand}"
-                                                Content="Refresh Count"
-                                                FontSize="10"
-                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
-
-                                            <Button
-                                                Width="100"
-                                                Height="28"
-                                                Margin="0,4,0,0"
-                                                HorizontalAlignment="Left"
-                                                Content="Reset All"
-                                                FontSize="10"
-                                                IsEnabled="False"
-                                                Opacity="0.6"
-                                                        Style="{StaticResource MaterialDesignOutlinedButton}" />
-                                        </StackPanel>
-                                    </Border>
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>

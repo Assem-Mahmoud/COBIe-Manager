@@ -4,7 +4,8 @@ using COBIeManager.Shared.Models;
 namespace COBIeManager.Features.ParameterFiller.Models
 {
     /// <summary>
-    /// Wrapper class for FillMode with selection state for UI binding
+    /// Wrapper class for FillMode with selection state for UI binding.
+    /// This class provides a bridge between the UI and the mode-specific configuration.
     /// </summary>
     public partial class FillModeItem : ObservableObject
     {
@@ -44,6 +45,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// Whether this mode has any mapped parameters
         /// </summary>
         public bool HasMappedParameters => MappedParameterCount > 0;
+
+        /// <summary>
+        /// Reference to the mode-specific configuration (optional, set during initialization)
+        /// </summary>
+        public FillModeConfigBase Config { get; set; }
 
         /// <summary>
         /// Creates a new FillModeItem

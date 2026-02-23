@@ -23,6 +23,7 @@ public partial class SelectableParameter : ObservableObject
             OnPropertyChanged(nameof(CategoryCount));
             OnPropertyChanged(nameof(DataTypeDisplay));
             OnPropertyChanged(nameof(GroupDisplay));
+            OnPropertyChanged(nameof(InstanceTypeDisplay));
         }
     }
 
@@ -72,7 +73,17 @@ public partial class SelectableParameter : ObservableObject
     /// <summary>
     /// Display name for the parameter group
     /// </summary>
-    public string? GroupDisplay => GroupBindingId;
+    public string GroupDisplay => ParameterGroupMapper.GetGroupName(GroupBindingId);
+
+    /// <summary>
+    /// Display name for Instance/Type association
+    /// </summary>
+    public string InstanceTypeDisplay => InstanceTypeAssociation switch
+    {
+        ParameterType.Instance => "Instance",
+        ParameterType.Type => "Type",
+        _ => "Unknown"
+    };
 
     /// <summary>
     /// Formatted category count display (e.g., "5 categories")

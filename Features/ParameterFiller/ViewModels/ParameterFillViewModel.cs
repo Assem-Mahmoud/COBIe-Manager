@@ -42,6 +42,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
         // UI Collections
         public ObservableCollection<Level> Levels { get; }
+        public ObservableCollection<Element> ScopeBoxes { get; }
         public ObservableCollection<CategoryItem> AvailableCategories { get; }
         public ObservableCollection<ParameterItem> AvailableParameters { get; }
         public ObservableCollection<FillModeItem> AvailableFillModes { get; }
@@ -55,7 +56,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         public bool HasUnmappedParameters => AvailableParameters?.Any(p => p.IsSelected && !p.IsMapped) ?? false;
         public bool HasSelectedFillModes => AvailableFillModes?.Any(m => m.IsSelected) ?? false;
         public bool CanExecutePreview => Config != null && HasSelectedFillModes && !IsProcessing;
-        public bool CanExecuteFill => Config != null && HasSelectedFillModes && !IsProcessing;
+        public bool CanExecuteFill => Config != null && HasSelectedFillModes && !IsProcessing && !HasUnmappedParameters;
         public bool HasValidationWarning => PreviewSummary != null && PreviewSummary.HasValidationWarnings;
         public string PreviewStatusMessage => PreviewSummary?.GetStatusMessage() ?? "Run preview to see estimated counts";
 
@@ -87,14 +88,33 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             // Initialize collections
             Levels = new ObservableCollection<Level>();
+            ScopeBoxes = new ObservableCollection<Element>();
             AvailableCategories = new ObservableCollection<CategoryItem>();
             AvailableParameters = new ObservableCollection<ParameterItem>();
+
+            // Create FillModeItems linked to their corresponding config objects
             AvailableFillModes = new ObservableCollection<FillModeItem>
             {
-                new FillModeItem("Level", "Fill level-based parameters", FillMode.Level, "Layers", isSelected: false),
-                new FillModeItem("Room Name", "Fill with room names", FillMode.RoomName, "Home", isSelected: false),
-                new FillModeItem("Room Number", "Fill with room numbers", FillMode.RoomNumber, "Numeric", isSelected: false),
+                new FillModeItem("Level", "Fill level-based parameters", FillMode.Level, "Layers", isSelected: false)
+                {
+                    Config = Config.LevelMode
+                },
+                new FillModeItem("Room Name", "Fill with room names", FillMode.RoomName, "Home", isSelected: false)
+                {
+                    Config = Config.RoomNameMode
+                },
+                new FillModeItem("Room Number", "Fill with room numbers", FillMode.RoomNumber, "Numeric", isSelected: false)
+                {
+                    Config = Config.RoomNumberMode
+                },
                 new FillModeItem("Groups", "Fill with Model Group box IDs", FillMode.Groups, "Group", isSelected: false)
+                {
+                    Config = Config.GroupsMode
+                },
+                new FillModeItem("Building", "Fill with scope box names", FillMode.ScopeBox, "RectangleOutline", isSelected: false)
+                {
+                    Config = Config.ScopeBoxMode
+                }
             };
 
             // Wire up property change handlers for FillModeItems
@@ -127,6 +147,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             // Load data from document
             LoadLevels();
+            LoadScopeBoxes();
             LoadCategories();
             LoadParameters();
         }
@@ -248,11 +269,11 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     Levels.Add(level);
                 }
 
-                // Set default levels if available
+                // Set default levels if available on LevelMode config
                 if (Levels.Count >= 2)
                 {
-                    Config.BaseLevel = Levels[0];
-                    Config.TopLevel = Levels[1];
+                    Config.LevelMode.BaseLevel = Levels[0];
+                    Config.LevelMode.TopLevel = Levels[1];
                 }
 
                 StatusMessage = $"Loaded {Levels.Count} levels";
@@ -260,6 +281,52 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Error loading levels: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Loads scope boxes from the Revit document
+        /// </summary>
+        private void LoadScopeBoxes()
+        {
+            if (_uiDoc == null || _uiDoc.Document == null)
+            {
+                StatusMessage = "No active document";
+                return;
+            }
+
+            try
+            {
+                var doc = _uiDoc.Document;
+
+                // Get scope boxes (category: OST_VolumeOfInterest)
+                var scopeBoxCollector = new FilteredElementCollector(doc)
+                    .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_VolumeOfInterest)
+                    .WhereElementIsNotElementType();
+
+                ScopeBoxes.Clear();
+                var scopeBoxElements = scopeBoxCollector
+                    .OrderBy(sb => sb.Name)
+                    .ToList();
+
+                // Populate scope boxes and restore selections from config
+                foreach (var scopeBox in scopeBoxElements)
+                {
+                    ScopeBoxes.Add(scopeBox);
+                }
+
+                // Restore selected scope boxes from config
+                Config.ScopeBoxMode.SelectedScopeBoxes.Clear();
+                foreach (var scopeBox in ScopeBoxes.Where(sb => Config.ScopeBoxMode.SelectedScopeBoxIds.Contains(sb.Id)))
+                {
+                    Config.ScopeBoxMode.SelectedScopeBoxes.Add(scopeBox);
+                }
+
+                StatusMessage = $"Loaded {ScopeBoxes.Count} scope boxes";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error loading scope boxes: {ex.Message}";
             }
         }
 
@@ -279,57 +346,134 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 var doc = _uiDoc.Document;
                 AvailableCategories.Clear();
 
-                // Define common model categories to include
+                // Comprehensive list of Revit model categories (valid BuiltInCategory enum values)
                 var modelCategories = new List<BuiltInCategory>
                 {
-                    BuiltInCategory.OST_Doors,
-                    BuiltInCategory.OST_Windows,
-                    BuiltInCategory.OST_Furniture,
-                    BuiltInCategory.OST_MechanicalEquipment,
-                    BuiltInCategory.OST_GenericModel,
+                    // === Architectural ===
                     BuiltInCategory.OST_Walls,
                     BuiltInCategory.OST_Floors,
                     BuiltInCategory.OST_Ceilings,
                     BuiltInCategory.OST_Roofs,
-                    BuiltInCategory.OST_Columns,
+                    BuiltInCategory.OST_Doors,
+                    BuiltInCategory.OST_Windows,
+                    BuiltInCategory.OST_CurtainWallPanels,
+                    BuiltInCategory.OST_CurtainWallMullions,
+
+                    // === Stairs, Ramps, Railings ===
+                    BuiltInCategory.OST_Stairs,
+                    BuiltInCategory.OST_Ramps,
+                    BuiltInCategory.OST_Railings,
+
+                    // === Structural ===
                     BuiltInCategory.OST_StructuralColumns,
+                    BuiltInCategory.OST_Columns,
                     BuiltInCategory.OST_StructuralFraming,
-                    BuiltInCategory.OST_PlumbingFixtures,
-                    BuiltInCategory.OST_ElectricalEquipment,
-                    BuiltInCategory.OST_LightingFixtures,
-                    BuiltInCategory.OST_SpecialityEquipment,
-                    BuiltInCategory.OST_Casework,
+                    BuiltInCategory.OST_StructuralFoundation,
+                    BuiltInCategory.OST_StructuralTruss,
+
+                    // === Rebar & Reinforcement ===
+                    BuiltInCategory.OST_Rebar,
+                    BuiltInCategory.OST_FabricReinforcement,
+                    BuiltInCategory.OST_FabricAreas,
+
+                    // === MEP - Mechanical ===
+                    BuiltInCategory.OST_MechanicalEquipment,
                     BuiltInCategory.OST_DuctCurves,
                     BuiltInCategory.OST_DuctFitting,
                     BuiltInCategory.OST_DuctTerminal,
                     BuiltInCategory.OST_DuctAccessory,
+                    BuiltInCategory.OST_DuctInsulations,
+                    BuiltInCategory.OST_DuctLinings,
+
+                    // === MEP - Plumbing ===
+                    BuiltInCategory.OST_PlumbingFixtures,
                     BuiltInCategory.OST_PipeCurves,
                     BuiltInCategory.OST_PipeFitting,
                     BuiltInCategory.OST_PipeAccessory,
+                    BuiltInCategory.OST_PipeInsulations,
+                    BuiltInCategory.OST_FlexPipeCurves,
+
+                    // === MEP - Electrical ===
+                    BuiltInCategory.OST_ElectricalEquipment,
+                    BuiltInCategory.OST_ElectricalFixtures,
+                    BuiltInCategory.OST_LightingFixtures,
+                    BuiltInCategory.OST_LightingDevices,
+                    BuiltInCategory.OST_ElectricalCircuit,
+
+                    // === MEP - Cable Tray ===
                     BuiltInCategory.OST_CableTray,
                     BuiltInCategory.OST_CableTrayFitting,
+
+                    // === MEP - Conduit ===
                     BuiltInCategory.OST_Conduit,
                     BuiltInCategory.OST_ConduitFitting,
+
+                    // === MEP - Fire Protection ===
                     BuiltInCategory.OST_Sprinklers,
                     BuiltInCategory.OST_FireAlarmDevices,
+
+                    // === MEP - Communication ===
                     BuiltInCategory.OST_CommunicationDevices,
                     BuiltInCategory.OST_DataDevices,
-                    BuiltInCategory.OST_SecurityDevices,
-                    BuiltInCategory.OST_NurseCallDevices,
-                    BuiltInCategory.OST_LightingDevices,
-                    BuiltInCategory.OST_Stairs,
-                    BuiltInCategory.OST_Ramps,
-                    BuiltInCategory.OST_Railings,
-                    BuiltInCategory.OST_CurtainWallPanels,
-                    BuiltInCategory.OST_MechanicalEquipment,
-                    BuiltInCategory.OST_ElectricalFixtures,
-                    BuiltInCategory.OST_CommunicationDevices,
-                    BuiltInCategory.OST_DataDevices,
-                    BuiltInCategory.OST_FireProtection,
-                    BuiltInCategory.OST_SecurityDevices,
-                    BuiltInCategory.OST_NurseCallDevices,
                     BuiltInCategory.OST_TelephoneDevices,
-                    BuiltInCategory.OST_SpecialityEquipment
+                    BuiltInCategory.OST_NurseCallDevices,
+                    BuiltInCategory.OST_SecurityDevices,
+
+                    // === Speciality ===
+                    BuiltInCategory.OST_SpecialityEquipment,
+
+                    // === Furniture & Casework ===
+                    BuiltInCategory.OST_Furniture,
+                    BuiltInCategory.OST_FurnitureSystems,
+                    BuiltInCategory.OST_Casework,
+
+                    // === Generic ===
+                    BuiltInCategory.OST_GenericModel,
+
+                    // === Site ===
+                    BuiltInCategory.OST_Topography,
+                    BuiltInCategory.OST_Site,
+                    BuiltInCategory.OST_Parking,
+
+                    // === Mass ===
+                    BuiltInCategory.OST_Mass,
+
+                    // === Parts ===
+                    BuiltInCategory.OST_Parts,
+                    BuiltInCategory.OST_Assemblies,
+
+                    // === Divided Surfaces ===
+                    BuiltInCategory.OST_DividedSurface,
+
+                    // === Rooms ===
+                    BuiltInCategory.OST_Rooms,
+
+                    // === Areas ===
+                    BuiltInCategory.OST_Areas,
+
+                    // === Spaces ===
+                    BuiltInCategory.OST_MEPSpaces,
+
+                    // === Shaft Openings ===
+                    BuiltInCategory.OST_ShaftOpening,
+
+                    // === Grids ===
+                    BuiltInCategory.OST_Grids,
+
+                    // === Levels ===
+                    BuiltInCategory.OST_Levels,
+
+                    // === Trusses ===
+                    BuiltInCategory.OST_Truss,
+
+                    // === Detail Items ===
+                    BuiltInCategory.OST_DetailComponents,
+
+                    // === Fascia & Gutters ===
+                    BuiltInCategory.OST_Fascia,
+
+                    // === Roof Soffit ===
+                    BuiltInCategory.OST_RoofSoffit
                 };
 
                 foreach (var category in modelCategories)
@@ -379,7 +523,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     AvailableCategories.Add(cat);
                 }
 
-                Config.AvailableCategories = AvailableCategories.ToList();
+                Config.General.AvailableCategories = AvailableCategories.ToList();
 
                 OnPropertyChanged(nameof(SelectedCategoryCount));
                 OnPropertyChanged(nameof(TotalCategoryCount));
@@ -509,7 +653,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     AvailableParameters.Add(param);
                 }
 
-                Config.AvailableParameters = AvailableParameters.ToList();
+                Config.General.AvailableParameters = AvailableParameters.ToList();
                 OnPropertyChanged(nameof(SelectedParameterCount));
                 OnPropertyChanged(nameof(TotalParameterCount));
                 OnPropertyChanged(nameof(HasUnmappedParameters));
@@ -558,12 +702,12 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         {
             if (Config == null || AvailableCategories == null) return;
 
-            Config.SelectedCategories = AvailableCategories
+            Config.General.SelectedCategories = AvailableCategories
                 .Where(c => c.IsSelected)
                 .Select(c => c.Category)
                 .ToList();
 
-            Config.AvailableCategories = AvailableCategories.ToList();
+            Config.General.AvailableCategories = AvailableCategories.ToList();
         }
 
         /// <summary>
@@ -598,6 +742,39 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             OnPropertyChanged(nameof(HasUnmappedParameters));
             OnPropertyChanged(nameof(CanExecutePreview));
             OnPropertyChanged(nameof(CanExecuteFill));
+        }
+
+        /// <summary>
+        /// Toggles the selection of a scope box
+        /// </summary>
+        [RelayCommand]
+        private void ToggleScopeBox(Autodesk.Revit.DB.Element scopeBoxElement)
+        {
+            if (scopeBoxElement == null || Config?.ScopeBoxMode == null)
+                return;
+
+            var scopeBoxId = scopeBoxElement.Id;
+
+            if (Config.ScopeBoxMode.IsScopeBoxSelected(scopeBoxId))
+            {
+                Config.ScopeBoxMode.RemoveScopeBox(scopeBoxId);
+            }
+            else
+            {
+                Config.ScopeBoxMode.AddScopeBox(scopeBoxId);
+            }
+
+            // Update the SelectedScopeBoxes collection
+            Config.ScopeBoxMode.SelectedScopeBoxes.Clear();
+            foreach (var scopeBox in ScopeBoxes.Where(sb => Config.ScopeBoxMode.SelectedScopeBoxIds.Contains(sb.Id)))
+            {
+                Config.ScopeBoxMode.SelectedScopeBoxes.Add(scopeBox);
+            }
+
+            // Notify that the collection has changed
+            OnPropertyChanged(nameof(Config.ScopeBoxMode.SelectedScopeBoxIds));
+
+            StatusMessage = $"Selected {Config.ScopeBoxMode.SelectedScopeBoxIds.Count} scope box(es)";
         }
 
         /// <summary>
@@ -734,19 +911,33 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
-        /// Synchronizes selected FillModeItems to Config.FillMode before execution
+        /// Synchronizes selected FillModeItems to Config mode-specific configs before execution
         /// </summary>
         private void SyncSelectedFillModesToConfig()
         {
             if (Config == null || AvailableFillModes == null) return;
 
-            FillMode selectedModes = FillMode.None;
-            foreach (var modeItem in AvailableFillModes.Where(m => m.IsSelected))
+            foreach (var modeItem in AvailableFillModes)
             {
-                selectedModes |= modeItem.Mode;
+                switch (modeItem.Mode)
+                {
+                    case FillMode.Level:
+                        Config.LevelMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                    case FillMode.RoomName:
+                        Config.RoomNameMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                    case FillMode.RoomNumber:
+                        Config.RoomNumberMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                    case FillMode.Groups:
+                        Config.GroupsMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                    case FillMode.ScopeBox:
+                        Config.ScopeBoxMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                }
             }
-
-            Config.FillMode = selectedModes;
         }
 
         /// <summary>

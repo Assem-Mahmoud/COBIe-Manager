@@ -20,19 +20,22 @@ namespace COBIeManager.Shared.Services
         private readonly IRoomAssignmentService _roomAssignmentService;
         private readonly IBoxIdFillService _boxIdFillService;
         private readonly IRoomFillService _roomFillService;
+        private readonly IScopeBoxAssignmentService _scopeBoxAssignmentService;
 
         public ParameterFillService(
             ILogger logger,
             ILevelAssignmentService levelAssignmentService,
             IRoomAssignmentService roomAssignmentService,
             IBoxIdFillService boxIdFillService,
-            IRoomFillService roomFillService)
+            IRoomFillService roomFillService,
+            IScopeBoxAssignmentService scopeBoxAssignmentService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _levelAssignmentService = levelAssignmentService ?? throw new ArgumentNullException(nameof(levelAssignmentService));
             _roomAssignmentService = roomAssignmentService ?? throw new ArgumentNullException(nameof(roomAssignmentService));
             _boxIdFillService = boxIdFillService ?? throw new ArgumentNullException(nameof(boxIdFillService));
             _roomFillService = roomFillService ?? throw new ArgumentNullException(nameof(roomFillService));
+            _scopeBoxAssignmentService = scopeBoxAssignmentService ?? throw new ArgumentNullException(nameof(scopeBoxAssignmentService));
         }
 
         /// <summary>
@@ -71,6 +74,7 @@ namespace COBIeManager.Shared.Services
             bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
             bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
             bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
+            bool hasScopeBoxMode = (config.FillMode & FillMode.ScopeBox) != 0;
 
             // Process room name preview if mode is selected and parameters are mapped
             if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
@@ -119,6 +123,23 @@ namespace COBIeManager.Shared.Services
                 _logger.Info("Groups mode preview: Box ID fill preview not yet implemented");
             }
 
+            // Process scope box preview if mode is selected and parameters are mapped
+            if (hasScopeBoxMode && config.GetScopeBoxModeParameters().Count > 0)
+            {
+                var scopeBoxPreview = _scopeBoxAssignmentService.PreviewFill(document, config);
+                summary.EstimatedElementsToProcess += scopeBoxPreview.ElementsFound;
+
+                if (scopeBoxPreview.Errors > 0)
+                {
+                    foreach (var error in scopeBoxPreview.ErrorMessages)
+                    {
+                        summary.AddValidationWarning(error);
+                    }
+                }
+
+                _logger.Info($"ScopeBox mode preview: {scopeBoxPreview.ElementsFound} elements in scope box, {scopeBoxPreview.ParametersFilled} parameters to fill");
+            }
+
             // Process level preview if mode is selected and parameters are mapped
             if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
             {
@@ -131,7 +152,12 @@ namespace COBIeManager.Shared.Services
                     int inBandCount = 0;
                     foreach (var element in elements)
                     {
-                        if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                        if (_levelAssignmentService.IsElementInLevelBand(
+                            element,
+                            config.BaseLevel,
+                            config.TopLevel,
+                            config.LevelMode.BaseTolerance,
+                            config.LevelMode.TopTolerance))
                         {
                             inBandCount++;
                         }
@@ -188,8 +214,9 @@ namespace COBIeManager.Shared.Services
             bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
             bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
             bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
+            bool hasScopeBoxMode = (config.FillMode & FillMode.ScopeBox) != 0;
 
-            _logger.Info($"Processing modes - Level: {hasLevelMode}, RoomName: {hasRoomNameMode}, RoomNumber: {hasRoomNumberMode}, Groups: {hasGroupsMode}");
+            _logger.Info($"Processing modes - Level: {hasLevelMode}, RoomName: {hasRoomNameMode}, RoomNumber: {hasRoomNumberMode}, Groups: {hasGroupsMode}, ScopeBox: {hasScopeBoxMode}");
 
             // Process room name fill if mode is selected and parameters are mapped
             if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
@@ -231,6 +258,15 @@ namespace COBIeManager.Shared.Services
                 }
             }
 
+            // Process scope box fill if mode is selected and parameters are mapped
+            if (hasScopeBoxMode && config.GetScopeBoxModeParameters().Count > 0)
+            {
+                _logger.Info("Processing scope box fill");
+                var scopeBoxSummary = _scopeBoxAssignmentService.ExecuteFill(document, config, progressAction);
+                finalSummary.ScopeBoxFillSummary = scopeBoxSummary;
+                _logger.Info($"Scope box fill complete: {scopeBoxSummary.ParametersFilled} parameters filled, {scopeBoxSummary.ElementsFound} elements in scope box");
+            }
+
             // Process level fill if mode is selected and parameters are mapped
             if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
             {
@@ -268,14 +304,24 @@ namespace COBIeManager.Shared.Services
                                 }
 
                                 // Check if element is in level band
-                                if (_levelAssignmentService.IsElementInLevelBand(element, config.BaseLevel, config.TopLevel))
+                                if (_levelAssignmentService.IsElementInLevelBand(
+                            element,
+                            config.BaseLevel,
+                            config.TopLevel,
+                            config.LevelMode.BaseTolerance,
+                            config.LevelMode.TopTolerance))
                                 {
+                                    // Determine the level name to use - custom name if provided, otherwise Revit level name
+                                    string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
+                                        ? config.LevelMode.CustomLevelName
+                                        : config.BaseLevel.Name;
+
                                     // Fill all selected parameters with the level name
                                     foreach (var paramName in selectedParameters)
                                     {
                                         var result = _levelAssignmentService.AssignLevelParameter(
                                             element,
-                                            config.BaseLevel.Name,
+                                            levelNameToUse,
                                             processingLogger,
                                             paramName,
                                             config.OverwriteExisting);

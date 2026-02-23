@@ -195,6 +195,27 @@
                                         Text="Groups" />
                                 </StackPanel>
                             </Button>
+                            <Button
+                                Width="90"
+                                Height="28"
+                                Margin="3,0,0,0"
+                                Padding="6,4"
+                                Command="{Binding SetAllUnmappedToScopeBoxCommand}"
+                                FontSize="9"
+                                Style="{StaticResource MaterialDesignOutlinedButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                        Width="12"
+                                        Height="12"
+                                        Margin="0,0,2,0"
+                                        VerticalAlignment="Center"
+                                        Kind="RectangleOutline" />
+                                    <TextBlock
+                                        Margin="0"
+                                        VerticalAlignment="Center"
+                                        Text="Building" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -237,6 +258,7 @@
                                                 <ComboBoxItem Content="Room Name" />
                                                 <ComboBoxItem Content="Room Number" />
                                                 <ComboBoxItem Content="Groups" />
+                                                <ComboBoxItem Content="Building" />
                                             </ComboBox>
                                         </Grid>
                                     </Border>

@@ -116,6 +116,19 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
+        /// Sets the mode for all unmapped parameters to Scope Box (Building) mode
+        /// </summary>
+        [RelayCommand]
+        private void SetAllUnmappedToScopeBox()
+        {
+            foreach (var param in SelectedParameters.Where(p => !p.IsMapped))
+            {
+                param.ApplicableMode = FillMode.ScopeBox;
+                param.IsMapped = true;
+            }
+        }
+
+        /// <summary>
         /// Validates that all selected parameters have been mapped
         /// </summary>
         public bool IsValid => !HasUnmappedParameters;

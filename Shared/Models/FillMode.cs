@@ -31,6 +31,11 @@ namespace COBIeManager.Shared.Models
         /// <summary>
         /// Fill box ID from Model Groups
         /// </summary>
-        Groups = 8        // 1 << 3
+        Groups = 8,       // 1 << 3
+
+        /// <summary>
+        /// Fill scope box name parameters
+        /// </summary>
+        ScopeBox = 16     // 1 << 4
     }
 }

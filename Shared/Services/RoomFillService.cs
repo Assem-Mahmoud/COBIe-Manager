@@ -157,37 +157,45 @@ namespace COBIeManager.Shared.Services
             }
 
             // Get the appropriate parameters based on FillMode using bitwise operations
-            IList<string> selectedParameters;
-            string fillType;
+            // Support multiple modes simultaneously by combining parameters from all enabled modes
+            var allSelectedParameters = new List<string>();
+            var fillTypes = new List<string>();
 
             bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
             bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
 
-            // Prioritize RoomName mode if set, otherwise RoomNumber
+            // Collect parameters from all enabled modes
             if (hasRoomNameMode)
             {
-                selectedParameters = config.GetRoomNameModeParameters();
-                fillType = "room name";
-            }
-            else if (hasRoomNumberMode)
-            {
-                selectedParameters = config.GetRoomNumberModeParameters();
-                fillType = "room number";
-            }
-            else
-            {
-                // Fallback - use all room parameters
-                selectedParameters = config.GetRoomModeParameters();
-                fillType = "room";
+                var roomNameParams = config.GetRoomNameModeParameters();
+                allSelectedParameters.AddRange(roomNameParams);
+                fillTypes.Add("room name");
+                _logger.Info($"RoomName mode enabled: {roomNameParams.Count} parameters");
             }
 
-            if (selectedParameters.Count == 0)
+            if (hasRoomNumberMode)
+            {
+                var roomNumberParams = config.GetRoomNumberModeParameters();
+                allSelectedParameters.AddRange(roomNumberParams);
+                fillTypes.Add("room number");
+                _logger.Info($"RoomNumber mode enabled: {roomNumberParams.Count} parameters");
+            }
+
+            // Fallback - if no modes enabled, use all room parameters
+            if (!hasRoomNameMode && !hasRoomNumberMode)
+            {
+                allSelectedParameters.AddRange(config.GetRoomModeParameters());
+                fillTypes.Add("room");
+            }
+
+            if (allSelectedParameters.Count == 0)
             {
                 _logger.Warn("No parameters selected for room fill");
                 return summary;
             }
 
-            _logger.Info($"Filling {selectedParameters.Count} {fillType} parameters: {string.Join(", ", selectedParameters)}");
+            string fillType = string.Join(" and ", fillTypes);
+            _logger.Info($"Filling {allSelectedParameters.Count} {fillType} parameters: {string.Join(", ", allSelectedParameters)}");
 
             // Collect elements
             var previewSummary = new RoomFillPreviewSummary();
@@ -242,7 +250,7 @@ namespace COBIeManager.Shared.Services
 
                             // Fill each selected parameter individually
                             int parametersAssigned = 0;
-                            foreach (var paramName in selectedParameters)
+                            foreach (var paramName in allSelectedParameters)
                             {
                                 // Determine what value to fill based on FillMode and parameter name
                                 string valueToFill = GetRoomValueForParameter(paramName, room, config.FillMode);
@@ -254,10 +262,27 @@ namespace COBIeManager.Shared.Services
                                     {
                                         parametersAssigned++;
 
-                                        // Track statistics based on FillMode using bitwise operations
-                                        // Note: hasRoomNameMode and hasRoomNumberMode are declared earlier in the method
+                                        // Track statistics based on parameter type
+                                        // Use parameter name detection when multiple modes are enabled
+                                        bool multipleModesEnabled = hasRoomNameMode && hasRoomNumberMode;
 
-                                        if (hasRoomNameMode)
+                                        if (multipleModesEnabled)
+                                        {
+                                            // When multiple modes are enabled, detect by parameter name
+                                            if (IsRoomNameParameter(paramName))
+                                            {
+                                                summary.RoomNameParametersFilled++;
+                                            }
+                                            else if (IsRoomNumberParameter(paramName))
+                                            {
+                                                summary.RoomNumberParametersFilled++;
+                                            }
+                                            else if (IsRoomRefParameter(paramName))
+                                            {
+                                                summary.RoomRefParametersFilled++;
+                                            }
+                                        }
+                                        else if (hasRoomNameMode)
                                         {
                                             summary.RoomNameParametersFilled++;
                                         }
@@ -431,18 +456,11 @@ namespace COBIeManager.Shared.Services
             bool hasRoomNameMode = (fillMode & FillMode.RoomName) != 0;
             bool hasRoomNumberMode = (fillMode & FillMode.RoomNumber) != 0;
 
-            // For new explicit modes, always return the corresponding value
-            if (hasRoomNameMode)
-            {
-                return room.Name;
-            }
+            // When multiple modes are enabled, use parameter name detection to determine
+            // the appropriate value. This allows both RoomName and RoomNumber parameters
+            // to be filled in a single operation when both modes are selected.
 
-            if (hasRoomNumberMode)
-            {
-                return room.Number;
-            }
-
-            // Fallback: use parameter name detection for legacy support
+            // First, try parameter name detection (works for all cases including multiple modes)
             // Check if parameter is for room name
             if (IsRoomNameParameter(paramName))
             {
@@ -459,6 +477,17 @@ namespace COBIeManager.Shared.Services
             if (IsRoomRefParameter(paramName))
             {
                 return $"{room.Number}: {room.Name}";
+            }
+
+            // For single mode selection (legacy support), use mode-based detection
+            if (hasRoomNameMode && !hasRoomNumberMode)
+            {
+                return room.Name;
+            }
+
+            if (hasRoomNumberMode && !hasRoomNameMode)
+            {
+                return room.Number;
             }
 
             // Default: try to determine from parameter name
