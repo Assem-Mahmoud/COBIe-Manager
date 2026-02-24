@@ -333,6 +333,79 @@ public class ApsParametersService
     }
 
     /// <summary>
+    /// Gets labels for the specified account from APS.
+    /// </summary>
+    public async Task<List<ApsLabel>> GetLabelsAsync(string accountId)
+    {
+        await _sessionManager.EnsureTokenValidAsync();
+
+        using var client = CreateHttpClient();
+        var url = $"{BaseUrl}/accounts/{accountId}/labels";
+
+        _logger?.Info($"[ApsParametersService] Fetching labels from: {url}");
+
+        var response = await client.GetAsync(url);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger?.Warn($"[ApsParametersService] Failed to get labels: {response.StatusCode} - {errorContent}");
+            // Labels endpoint might not be available, return empty list
+            return new List<ApsLabel>();
+        }
+
+        await EnsureSuccessAsync(response);
+        var json = await response.Content.ReadAsStringAsync();
+
+        _logger?.Info($"[ApsParametersService] Labels response: {json}");
+
+        // Handle different response structures
+        JToken token = JToken.Parse(json);
+        JArray? jsonArray = null;
+
+        if (token is JArray arr)
+        {
+            jsonArray = arr;
+        }
+        else if (token is JObject obj)
+        {
+            // Check for common wrapper properties
+            jsonArray = obj["labels"] as JArray
+                      ?? obj["data"] as JArray
+                      ?? obj["results"] as JArray
+                      ?? obj["items"] as JArray;
+        }
+
+        var labels = new List<ApsLabel>();
+
+        if (jsonArray != null)
+        {
+            foreach (var item in jsonArray)
+            {
+                var name = item["name"]?.ToString()
+                         ?? item["title"]?.ToString()
+                         ?? item["displayName"]?.ToString()
+                         ?? string.Empty;
+
+                var label = new ApsLabel
+                {
+                    Id = item["id"]?.ToString() ?? string.Empty,
+                    Name = name,
+                    AccountId = item["accountId"]?.ToString() ?? accountId,
+                    Description = item["description"]?.ToString(),
+                    Color = item["color"]?.ToString()
+                };
+
+                _logger?.Info($"[ApsParametersService] Parsed label: Id={label.Id}, Name={label.Name}");
+                labels.Add(label);
+            }
+        }
+
+        _logger?.Info($"[ApsParametersService] Loaded {labels.Count} label(s)");
+        return labels;
+    }
+
+    /// <summary>
     /// Gets parameter specifications from APS.
     /// </summary>
     public async Task<ApsParameterResponse.SpecsResponse> GetSpecsAsync()

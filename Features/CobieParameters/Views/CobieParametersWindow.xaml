@@ -354,6 +354,88 @@
                             </StackPanel>
                         </Button>
 
+                        <!--  Label Filter Chips  -->
+                        <Border
+                            Margin="8,0,0,0"
+                            Padding="12,8"
+                            Background="White"
+                            BorderBrush="#E0E0E0"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding Labels}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border
+                                                Margin="4,0"
+                                                Padding="8,4"
+                                                Background="#F5F5F5"
+                                                BorderBrush="#E0E0E0"
+                                                BorderThickness="1"
+                                                CornerRadius="16"
+                                                Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="Background" Value="{StaticResource PrimaryBrush}" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <CheckBox.Template>
+                                                            <ControlTemplate TargetType="CheckBox">
+                                                                <ContentPresenter />
+                                                            </ControlTemplate>
+                                                        </CheckBox.Template>
+                                                        <CheckBox.Style>
+                                                            <Style TargetType="CheckBox">
+                                                                <Setter Property="Foreground" Value="#757575" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </CheckBox.Style>
+                                                    </CheckBox>
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        FontWeight="Medium"
+                                                        Foreground="#424242"
+                                                        Text="{Binding Name}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#424242" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter Property="Foreground" Value="White" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
                         <!--  Search Box  -->
                         <Border
                             Margin="16,0,0,0"
@@ -457,6 +539,16 @@
                                 Binding="{Binding Name}"
                                 FontSize="14"
                                 FontWeight="Medium" />
+                            <DataGridTextColumn
+                                Header="Collection"
+                                Width="120"
+                                Binding="{Binding CollectionName}"
+                                FontSize="12" />
+                            <DataGridTextColumn
+                                Header="Labels"
+                                Width="150"
+                                Binding="{Binding LabelsDisplay}"
+                                FontSize="12" />
                             <DataGridTextColumn
                                 Header="Categories"
                                 Width="100"

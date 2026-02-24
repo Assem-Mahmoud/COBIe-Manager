@@ -33,6 +33,12 @@ public partial class SelectableParameter : ObservableObject
     [ObservableProperty]
     private bool _isSelected;
 
+    /// <summary>
+    /// Name of the collection this parameter belongs to (for display in "All" view)
+    /// </summary>
+    [ObservableProperty]
+    private string _collectionName = string.Empty;
+
     // Expose properties for easier binding with safe null handling
     public string Id => _parameter?.Id ?? string.Empty;
     public string Name => _parameter?.Name ?? string.Empty;
@@ -89,4 +95,18 @@ public partial class SelectableParameter : ObservableObject
     /// Formatted category count display (e.g., "5 categories")
     /// </summary>
     public string CategoryCountDisplay => CategoryCount > 0 ? $"{CategoryCount} categories" : "0 categories";
+
+    /// <summary>
+    /// Formatted labels display (comma-separated)
+    /// </summary>
+    public string LabelsDisplay
+    {
+        get
+        {
+            var labels = _parameter?.Labels ?? System.Array.Empty<string>();
+            if (labels.Length == 0)
+                return string.Empty;
+            return string.Join(", ", labels);
+        }
+    }
 }

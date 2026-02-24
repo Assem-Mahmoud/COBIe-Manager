@@ -46,6 +46,12 @@ public partial class CobieParametersViewModel : ObservableObject
     // Track selected parameters across collections (preserves selections when switching collections)
     private readonly HashSet<string> _selectedParameterIds = new();
 
+    // Cache all parameters by collection ID for local filtering
+    private readonly Dictionary<string, List<SelectableParameter>> _allParametersByCollection = new();
+
+    // Special "All" collection that combines all parameters
+    private ApsCollection? _allCollection;
+
     [ObservableProperty]
     private bool _isAuthenticated;
 
@@ -78,6 +84,7 @@ public partial class CobieParametersViewModel : ObservableObject
     public ObservableCollection<SelectableParameter> SelectedParameters { get; }
     public ObservableCollection<SelectableParameter> FilteredParameters { get; }
     public ObservableCollection<ApsCollection> Collections { get; }
+    public ObservableCollection<ApsLabel> Labels { get; }
 
     public CobieParametersViewModel(UIDocument? uiDoc)
     {
@@ -103,6 +110,7 @@ public partial class CobieParametersViewModel : ObservableObject
         SelectedParameters = new ObservableCollection<SelectableParameter>();
         FilteredParameters = new ObservableCollection<SelectableParameter>();
         Collections = new ObservableCollection<ApsCollection>();
+        Labels = new ObservableCollection<ApsLabel>();
 
         // Helper method to subscribe to PropertyChanged for a parameter
         void SubscribeToParameter(SelectableParameter item)
@@ -157,6 +165,16 @@ public partial class CobieParametersViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Called when a label's IsSelected property changes - updates the filter
+    /// </summary>
+    public void OnLabelSelectionChanged()
+    {
+        ApplySearchFilter();
+        OnPropertyChanged(nameof(FilteredCount));
+        OnPropertyChanged(nameof(HasNoSearchResults));
+    }
+
+    /// <summary>
     /// Called when IsLoading property changes
     /// </summary>
     partial void OnIsLoadingChanged(bool value)
@@ -177,25 +195,39 @@ public partial class CobieParametersViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Applies the current search filter to update the filtered parameters collection
+    /// Applies the current search filter and label filter to update the filtered parameters collection
     /// </summary>
     private void ApplySearchFilter()
     {
         FilteredParameters.Clear();
 
-        if (string.IsNullOrWhiteSpace(SearchText))
+        // Get selected label IDs for filtering
+        var selectedLabelIds = Labels.Where(l => l.IsSelected).Select(l => l.Id).ToHashSet();
+        var hasLabelFilter = selectedLabelIds.Count > 0;
+
+        foreach (var param in Parameters)
         {
-            // No search - show all parameters
-            foreach (var param in Parameters)
+            // Apply label filter
+            if (hasLabelFilter)
             {
+                // Check if parameter has ANY of the selected labels
+                var paramLabels = param.Parameter.Labels ?? Array.Empty<string>();
+                var hasMatchingLabel = paramLabels.Any(l => selectedLabelIds.Contains(l));
+                if (!hasMatchingLabel)
+                {
+                    continue; // Skip this parameter
+                }
+            }
+
+            // Apply text search filter
+            if (string.IsNullOrWhiteSpace(SearchText))
+            {
+                // No text search - show all parameters that passed label filter
                 FilteredParameters.Add(param);
             }
-        }
-        else
-        {
-            var searchText = SearchText.ToLowerInvariant();
-            foreach (var param in Parameters)
+            else
             {
+                var searchText = SearchText.ToLowerInvariant();
                 var nameMatch = param.Parameter.Name.ToLowerInvariant().Contains(searchText);
                 var descMatch = !string.IsNullOrEmpty(param.Parameter.Description) &&
                                 param.Parameter.Description.ToLowerInvariant().Contains(searchText);
@@ -361,6 +393,7 @@ public partial class CobieParametersViewModel : ObservableObject
 
     /// <summary>
     /// Load collections using the fixed hub and group IDs.
+    /// Also creates the special "All" collection and loads all parameters.
     /// </summary>
     private async Task LoadCollectionsAsync()
     {
@@ -385,19 +418,35 @@ public partial class CobieParametersViewModel : ObservableObject
             var collections = await Task.Run(async () => await _parametersService.GetCollectionsAsync(FixedHubId, FixedGroupId));
 
             Collections.Clear();
+
+            // Create the special "All" collection
+            _allCollection = new ApsCollection
+            {
+                Id = "all-collections-special-id",
+                Name = "All",
+                Description = "All parameters from all collections",
+                IsDefaultCobieCollection = false
+            };
+            Collections.Add(_allCollection);
+
+            // Add the actual collections
             foreach (var collection in collections)
             {
                 Collections.Add(collection);
             }
 
-            StatusMessage = $"Loaded {Collections.Count} collection(s). Please select a collection to continue.";
-            _logger?.Info($"[ViewModel] Loaded {Collections.Count} collections");
+            _logger?.Info($"[ViewModel] Loaded {Collections.Count - 1} collections (plus 'All')");
 
-            // Auto-select COBie collection if exists, otherwise first collection
-            var defaultCollection = Collections.FirstOrDefault(c => c.IsDefaultCobieCollection) ?? Collections.FirstOrDefault();
-            if (defaultCollection != null)
+            // Load labels from APS
+            await LoadLabelsAsync();
+
+            // Load all parameters from all collections
+            await LoadAllParametersAsync();
+
+            // Select "All" as the default collection
+            if (_allCollection != null)
             {
-                SelectedCollection = defaultCollection;
+                SelectedCollection = _allCollection;
             }
         }
         catch (RefreshTokenExpiredException)
@@ -439,8 +488,9 @@ public partial class CobieParametersViewModel : ObservableObject
 
         if (value != null)
         {
-            StatusMessage = $"Collection '{value.Name}' selected. Loading parameters...";
-            _ = LoadParametersAsync();
+            StatusMessage = $"Collection '{value.Name}' selected.";
+            // Display parameters from cache (local filtering, no network call)
+            DisplayParametersForCollection();
         }
     }
 
@@ -529,6 +579,210 @@ public partial class CobieParametersViewModel : ObservableObject
             }
             IsLoading = false;
         }
+    }
+
+    /// <summary>
+    /// Load all parameters from all collections and cache them for local filtering.
+    /// </summary>
+    private async Task LoadAllParametersAsync()
+    {
+        if (Collections.Count == 0)
+        {
+            _logger?.Warn("[ViewModel] No collections to load parameters from");
+            return;
+        }
+
+        _logger?.Info($"[ViewModel] Loading parameters for all {Collections.Count} collections");
+        StatusMessage = "Loading COBie parameters from all collections...";
+        IsLoading = true;
+
+        // Minimum display time for loading state
+        var minDisplayTime = TimeSpan.FromMilliseconds(500);
+        var startTime = DateTime.UtcNow;
+
+        // Force UI update to show the spinner
+        await Task.Delay(50);
+
+        try
+        {
+            await _sessionManager.EnsureTokenValidAsync();
+
+            // Clear existing cache
+            _allParametersByCollection.Clear();
+
+            // Fetch parameters for all collections in parallel
+            var fetchTasks = Collections.Select(async collection =>
+            {
+                try
+                {
+                    var response = await _parametersService.GetParametersAsync(FixedHubId, collection.Id);
+                    return (Collection: collection, Response: response);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error($"[ViewModel] Failed to load parameters for collection '{collection.Name}'", ex);
+                    return (Collection: collection, Response: null);
+                }
+            }).ToList();
+
+            var results = await Task.WhenAll(fetchTasks);
+
+            // Process results and cache by collection ID
+            foreach (var result in results)
+            {
+                if (result.Response != null)
+                {
+                    var parameters = result.Response.Parameters.Select(p =>
+                    {
+                        var selectableParam = new SelectableParameter { Parameter = p, CollectionName = result.Collection.Name };
+                        // Restore selection state if previously selected
+                        if (_selectedParameterIds.Contains(selectableParam.Id))
+                        {
+                            selectableParam.IsSelected = true;
+                        }
+                        return selectableParam;
+                    }).ToList();
+
+                    _allParametersByCollection[result.Collection.Id] = parameters;
+                    _logger?.Info($"[ViewModel] Cached {parameters.Count} parameters from collection '{result.Collection.Name}'");
+                }
+                else
+                {
+                    // Store empty list for failed collections
+                    _allParametersByCollection[result.Collection.Id] = new List<SelectableParameter>();
+                }
+            }
+
+            var totalParams = _allParametersByCollection.Values.Sum(list => list.Count);
+            StatusMessage = $"Loaded {totalParams} parameters from {Collections.Count} collections.";
+            _logger?.Info($"[ViewModel] Loaded total of {totalParams} parameters from all collections");
+        }
+        catch (RefreshTokenExpiredException)
+        {
+            _logger?.Warn("[ViewModel] Refresh token expired while loading all parameters");
+            IsAuthenticated = false;
+            StatusMessage = "Your session has expired. Please login again.";
+        }
+        catch (TokenRefreshException ex)
+        {
+            _logger?.Error("[ViewModel] Token refresh failed while loading all parameters", ex);
+            StatusMessage = $"Failed to refresh token: {ex.Message}. Please try logging in again.";
+            IsAuthenticated = false;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("[ViewModel] Failed to load all parameters", ex);
+            StatusMessage = $"Failed to load parameters: {ex.Message}";
+        }
+        finally
+        {
+            // Ensure minimum display time for smooth UI
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed < minDisplayTime)
+            {
+                await Task.Delay((minDisplayTime - elapsed).Milliseconds);
+            }
+            IsLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Load labels from APS and populate the Labels collection.
+    /// </summary>
+    private async Task LoadLabelsAsync()
+    {
+        _logger?.Info("[ViewModel] Loading labels from APS");
+
+        try
+        {
+            await _sessionManager.EnsureTokenValidAsync();
+
+            // Fetch labels from APS
+            var labels = await _parametersService.GetLabelsAsync(FixedHubId);
+
+            Labels.Clear();
+            foreach (var label in labels)
+            {
+                // Subscribe to label property changes to update filter when selection changes
+                label.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(ApsLabel.IsSelected))
+                    {
+                        OnLabelSelectionChanged();
+                    }
+                };
+                Labels.Add(label);
+            }
+
+            _logger?.Info($"[ViewModel] Loaded {Labels.Count} labels");
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("[ViewModel] Failed to load labels", ex);
+            // Don't fail the entire flow if labels fail to load
+            StatusMessage = $"Failed to load labels: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Displays parameters from the cache based on the selected collection.
+    /// If "All" is selected, shows all parameters from all collections.
+    /// Otherwise, shows only parameters from the specific collection.
+    /// </summary>
+    private void DisplayParametersForCollection()
+    {
+        if (SelectedCollection == null)
+        {
+            Parameters.Clear();
+            FilteredParameters.Clear();
+            return;
+        }
+
+        // Clear current display
+        Parameters.Clear();
+        FilteredParameters.Clear();
+
+        // Check if this is the special "All" collection
+        if (_allCollection != null && SelectedCollection.Id == _allCollection.Id)
+        {
+            // Display all parameters from all collections
+            foreach (var kvp in _allParametersByCollection)
+            {
+                foreach (var param in kvp.Value)
+                {
+                    Parameters.Add(param);
+                }
+            }
+            StatusMessage = $"Showing all {Parameters.Count} parameters from all collections. {SelectedParameters.Count} total selected.";
+            _logger?.Info($"[ViewModel] Displaying all {Parameters.Count} parameters from all collections");
+        }
+        else
+        {
+            // Display only parameters from the selected collection
+            if (_allParametersByCollection.TryGetValue(SelectedCollection.Id, out var collectionParams))
+            {
+                foreach (var param in collectionParams)
+                {
+                    Parameters.Add(param);
+                }
+                StatusMessage = $"Showing {Parameters.Count} parameters from '{SelectedCollection.Name}'. {SelectedParameters.Count} total selected across collections.";
+                _logger?.Info($"[ViewModel] Displaying {Parameters.Count} parameters from collection '{SelectedCollection.Name}'");
+            }
+            else
+            {
+                StatusMessage = $"No parameters found for collection '{SelectedCollection.Name}'.";
+                _logger?.Warn($"[ViewModel] No cached parameters found for collection '{SelectedCollection.Name}'");
+            }
+        }
+
+        // Apply the current search filter
+        ApplySearchFilter();
+
+        // Notify that computed properties have changed
+        OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(FilteredCount));
+        OnPropertyChanged(nameof(HasNoParameters));
+        OnPropertyChanged(nameof(HasNoParametersAndNotLoading));
     }
 
     [RelayCommand]
