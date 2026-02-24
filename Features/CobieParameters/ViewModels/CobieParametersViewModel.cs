@@ -61,6 +61,9 @@ public partial class CobieParametersViewModel : ObservableObject
     [ObservableProperty]
     private string _searchText = string.Empty;
 
+    [ObservableProperty]
+    private string _labelSearchText = string.Empty;
+
     /// <summary>
     /// When false, parameter values are aligned across group instances (default - recommended for COBie).
     /// When true, parameter values can vary per group instance.
@@ -85,6 +88,7 @@ public partial class CobieParametersViewModel : ObservableObject
     public ObservableCollection<SelectableParameter> FilteredParameters { get; }
     public ObservableCollection<ApsCollection> Collections { get; }
     public ObservableCollection<ApsLabel> Labels { get; }
+    public ObservableCollection<ApsLabel> FilteredLabels { get; }
 
     public CobieParametersViewModel(UIDocument? uiDoc)
     {
@@ -111,6 +115,7 @@ public partial class CobieParametersViewModel : ObservableObject
         FilteredParameters = new ObservableCollection<SelectableParameter>();
         Collections = new ObservableCollection<ApsCollection>();
         Labels = new ObservableCollection<ApsLabel>();
+        FilteredLabels = new ObservableCollection<ApsLabel>();
 
         // Helper method to subscribe to PropertyChanged for a parameter
         void SubscribeToParameter(SelectableParameter item)
@@ -174,6 +179,25 @@ public partial class CobieParametersViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNoSearchResults));
     }
 
+    [RelayCommand]
+    private void ToggleLabel(ApsLabel label)
+    {
+        if (label == null) return;
+        label.IsSelected = !label.IsSelected;
+        // The PropertyChanged event from the label will trigger OnLabelSelectionChanged
+    }
+
+    [RelayCommand]
+    private void ClearLabelFilters()
+    {
+        LabelSearchText = string.Empty;
+        foreach (var label in Labels)
+        {
+            label.IsSelected = false;
+        }
+        // Filter will be updated automatically via PropertyChanged events
+    }
+
     /// <summary>
     /// Called when IsLoading property changes
     /// </summary>
@@ -192,6 +216,42 @@ public partial class CobieParametersViewModel : ObservableObject
         OnPropertyChanged(nameof(FilteredCount));
         OnPropertyChanged(nameof(IsSearching));
         OnPropertyChanged(nameof(HasNoSearchResults));
+    }
+
+    /// <summary>
+    /// Called when LabelSearchText property changes - filters the labels list
+    /// </summary>
+    partial void OnLabelSearchTextChanged(string value)
+    {
+        FilterLabels();
+    }
+
+    /// <summary>
+    /// Filters the labels collection based on LabelSearchText and updates FilteredLabels
+    /// </summary>
+    private void FilterLabels()
+    {
+        FilteredLabels.Clear();
+
+        if (string.IsNullOrWhiteSpace(LabelSearchText))
+        {
+            // No search - show all labels
+            foreach (var label in Labels)
+            {
+                FilteredLabels.Add(label);
+            }
+        }
+        else
+        {
+            var searchText = LabelSearchText.ToLowerInvariant();
+            foreach (var label in Labels)
+            {
+                if (label.Name.ToLowerInvariant().Contains(searchText))
+                {
+                    FilteredLabels.Add(label);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -388,7 +448,96 @@ public partial class CobieParametersViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadParameters()
     {
-        await LoadParametersAsync();
+        if (SelectedCollection == null)
+        {
+            StatusMessage = "Please select a collection first";
+            return;
+        }
+
+        _logger?.Info("[ViewModel] Refreshing parameters");
+
+        LoadingOverlayService.Show("Refreshing Parameters", "Fetching latest parameters from APS...");
+
+        try
+        {
+            await _sessionManager.EnsureTokenValidAsync();
+
+            // Clear existing cache
+            _allParametersByCollection.Clear();
+            Parameters.Clear();
+            FilteredParameters.Clear();
+
+            // Fetch parameters for all collections in parallel
+            var fetchTasks = Collections.Select(async collection =>
+            {
+                try
+                {
+                    var response = await _parametersService.GetParametersAsync(FixedHubId, collection.Id);
+                    return (Collection: collection, Response: response);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error($"[ViewModel] Failed to load parameters for collection '{collection.Name}'", ex);
+                    return (Collection: collection, Response: null);
+                }
+            }).ToList();
+
+            var results = await Task.WhenAll(fetchTasks);
+
+            // Process results and cache by collection ID
+            foreach (var result in results)
+            {
+                if (result.Response != null)
+                {
+                    var parameters = result.Response.Parameters.Select(p =>
+                    {
+                        var selectableParam = new SelectableParameter { Parameter = p, CollectionName = result.Collection.Name };
+                        // Restore selection state if previously selected
+                        if (_selectedParameterIds.Contains(selectableParam.Id))
+                        {
+                            selectableParam.IsSelected = true;
+                        }
+                        return selectableParam;
+                    }).ToList();
+
+                    _allParametersByCollection[result.Collection.Id] = parameters;
+                    _logger?.Info($"[ViewModel] Cached {parameters.Count} parameters from collection '{result.Collection.Name}'");
+                }
+                else
+                {
+                    // Store empty list for failed collections
+                    _allParametersByCollection[result.Collection.Id] = new List<SelectableParameter>();
+                }
+            }
+
+            var totalParams = _allParametersByCollection.Values.Sum(list => list.Count);
+            StatusMessage = $"Refreshed {totalParams} parameters from {Collections.Count} collections.";
+            _logger?.Info($"[ViewModel] Refreshed total of {totalParams} parameters from all collections");
+
+            // Re-display parameters for the currently selected collection
+            DisplayParametersForCollection();
+        }
+        catch (RefreshTokenExpiredException)
+        {
+            _logger?.Warn("[ViewModel] Refresh token expired while refreshing parameters");
+            IsAuthenticated = false;
+            StatusMessage = "Your session has expired. Please login again.";
+        }
+        catch (TokenRefreshException ex)
+        {
+            _logger?.Error("[ViewModel] Token refresh failed while refreshing parameters", ex);
+            StatusMessage = $"Failed to refresh token: {ex.Message}. Please try logging in again.";
+            IsAuthenticated = false;
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("[ViewModel] Failed to refresh parameters", ex);
+            StatusMessage = $"Failed to refresh parameters: {ex.Message}";
+        }
+        finally
+        {
+            LoadingOverlayService.Hide();
+        }
     }
 
     /// <summary>
@@ -400,14 +549,7 @@ public partial class CobieParametersViewModel : ObservableObject
         _logger?.Info($"[ViewModel] Loading collections for hub: {FixedHubId}, group: {FixedGroupId}");
 
         StatusMessage = "Loading collections...";
-        IsLoading = true;
-
-        // Minimum display time for loading state (500ms)
-        var minDisplayTime = TimeSpan.FromMilliseconds(500);
-        var startTime = DateTime.UtcNow;
-
-        // Force UI update to show the spinner
-        await Task.Delay(50);
+        LoadingOverlayService.Show("Loading COBie Parameters", "Fetching collections and labels...");
 
         try
         {
@@ -468,13 +610,7 @@ public partial class CobieParametersViewModel : ObservableObject
         }
         finally
         {
-            // Ensure minimum display time for smooth UI
-            var elapsed = DateTime.UtcNow - startTime;
-            if (elapsed < minDisplayTime)
-            {
-                await Task.Delay((minDisplayTime - elapsed).Milliseconds);
-            }
-            IsLoading = false;
+            LoadingOverlayService.Hide();
         }
     }
 
@@ -593,15 +729,7 @@ public partial class CobieParametersViewModel : ObservableObject
         }
 
         _logger?.Info($"[ViewModel] Loading parameters for all {Collections.Count} collections");
-        StatusMessage = "Loading COBie parameters from all collections...";
-        IsLoading = true;
-
-        // Minimum display time for loading state
-        var minDisplayTime = TimeSpan.FromMilliseconds(500);
-        var startTime = DateTime.UtcNow;
-
-        // Force UI update to show the spinner
-        await Task.Delay(50);
+        LoadingOverlayService.UpdateMessage("Loading COBie Parameters", "Loading parameters from all collections...");
 
         try
         {
@@ -674,16 +802,6 @@ public partial class CobieParametersViewModel : ObservableObject
             _logger?.Error("[ViewModel] Failed to load all parameters", ex);
             StatusMessage = $"Failed to load parameters: {ex.Message}";
         }
-        finally
-        {
-            // Ensure minimum display time for smooth UI
-            var elapsed = DateTime.UtcNow - startTime;
-            if (elapsed < minDisplayTime)
-            {
-                await Task.Delay((minDisplayTime - elapsed).Milliseconds);
-            }
-            IsLoading = false;
-        }
     }
 
     /// <summary>
@@ -701,6 +819,7 @@ public partial class CobieParametersViewModel : ObservableObject
             var labels = await _parametersService.GetLabelsAsync(FixedHubId);
 
             Labels.Clear();
+            FilteredLabels.Clear();
             foreach (var label in labels)
             {
                 // Subscribe to label property changes to update filter when selection changes
@@ -712,6 +831,7 @@ public partial class CobieParametersViewModel : ObservableObject
                     }
                 };
                 Labels.Add(label);
+                FilteredLabels.Add(label);
             }
 
             _logger?.Info($"[ViewModel] Loaded {Labels.Count} labels");
@@ -995,7 +1115,8 @@ public partial class CobieParametersViewModel : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        foreach (var param in Parameters)
+        // Select only the currently filtered parameters
+        foreach (var param in FilteredParameters)
         {
             param.IsSelected = true;
         }
@@ -1004,9 +1125,9 @@ public partial class CobieParametersViewModel : ObservableObject
     [RelayCommand]
     private void DeselectAll()
     {
-        // Deselect all currently visible parameters
+        // Deselect all currently visible/filtered parameters
         // Do NOT clear _selectedParameterIds - we want to keep selections from other collections
-        foreach (var param in Parameters)
+        foreach (var param in FilteredParameters)
         {
             param.IsSelected = false;
         }

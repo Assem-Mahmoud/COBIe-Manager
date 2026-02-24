@@ -99,7 +99,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 {
                     Config = Config.LevelMode
                 },
-                new FillModeItem("Room Name", "Fill with room names", FillMode.RoomName, "Home", isSelected: false)
+                new FillModeItem("Room Name", "Fill with room names", FillMode.RoomName, "AlphabeticalVariant", isSelected: false)
                 {
                     Config = Config.RoomNameMode
                 },
@@ -111,7 +111,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 {
                     Config = Config.GroupsMode
                 },
-                new FillModeItem("Building", "Fill with scope box names", FillMode.ScopeBox, "RectangleOutline", isSelected: false)
+                new FillModeItem("Building", "Fill with scope box names", FillMode.ScopeBox, "Home", isSelected: false)
                 {
                     Config = Config.ScopeBoxMode
                 }
