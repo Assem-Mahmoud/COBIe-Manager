@@ -9,6 +9,7 @@ namespace COBIeManager.Shared.Models
         public const string NoBoundingBox = "No bounding box";
         public const string BelowBand = "Position: BelowBand";
         public const string AboveBand = "Position: AboveBand";
+        public const string NoNearestLevel = "No nearest level found";
 
         // Room assignment skip reasons
         public const string NoLocation = "No Location";

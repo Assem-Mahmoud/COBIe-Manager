@@ -56,5 +56,15 @@ namespace COBIeManager.Shared.Interfaces
             IProcessingLogger logger,
             string parameterName = "ACG-4D-Level",
             bool overwrite = true);
+
+        /// <summary>
+        /// Finds the nearest level between two levels (base and top).
+        /// For excluded categories, determines which of the two levels is nearest to the element.
+        /// </summary>
+        /// <param name="element">Element to find nearest level for</param>
+        /// <param name="baseLevel">Base level</param>
+        /// <param name="topLevel">Top level</param>
+        /// <returns>Nearest level (base or top) or null if element has no bounding box</returns>
+        Level FindNearestLevelBetween(Element element, Level baseLevel, Level topLevel);
     }
 }

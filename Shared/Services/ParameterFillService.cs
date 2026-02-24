@@ -150,21 +150,47 @@ namespace COBIeManager.Shared.Services
                     _logger.Info($"Previewing {elements.Count} elements for level mode");
 
                     int inBandCount = 0;
+                    int nearestLevelCount = 0;
+
                     foreach (var element in elements)
                     {
-                        if (_levelAssignmentService.IsElementInLevelBand(
-                            element,
-                            config.BaseLevel,
-                            config.TopLevel,
-                            config.LevelMode.BaseTolerance,
-                            config.LevelMode.TopTolerance))
+                        // Check if element category is excluded
+                        bool isExcludedCategory = false;
+                        if (element.Category != null && config.LevelMode.ExcludedCategories != null)
                         {
-                            inBandCount++;
+                            var categoryId = (BuiltInCategory)element.Category.Id.IntegerValue;
+                            isExcludedCategory = config.LevelMode.ExcludedCategories.Contains(categoryId);
+                        }
+
+                        if (isExcludedCategory)
+                        {
+                            // Will use nearest level logic
+                            var nearestLevel = _levelAssignmentService.FindNearestLevelBetween(
+                                element,
+                                config.BaseLevel,
+                                config.TopLevel);
+                            if (nearestLevel != null)
+                            {
+                                nearestLevelCount++;
+                            }
+                        }
+                        else
+                        {
+                            // Standard level band check
+                            if (_levelAssignmentService.IsElementInLevelBand(
+                                element,
+                                config.BaseLevel,
+                                config.TopLevel,
+                                config.LevelMode.BaseTolerance,
+                                config.LevelMode.TopTolerance))
+                            {
+                                inBandCount++;
+                            }
                         }
                     }
 
-                    summary.EstimatedElementsToProcess += inBandCount;
-                    _logger.Info($"Level mode preview: {inBandCount} elements in level band");
+                    summary.EstimatedElementsToProcess += inBandCount + nearestLevelCount;
+                    _logger.Info($"Level mode preview: {inBandCount} elements in level band, {nearestLevelCount} elements using nearest level");
                 }
             }
 
@@ -303,56 +329,107 @@ namespace COBIeManager.Shared.Services
                                     progressAction?.Invoke(processedCount, message);
                                 }
 
-                                // Check if element is in level band
-                                if (_levelAssignmentService.IsElementInLevelBand(
-                            element,
-                            config.BaseLevel,
-                            config.TopLevel,
-                            config.LevelMode.BaseTolerance,
-                            config.LevelMode.TopTolerance))
+                                // Check if element category is excluded
+                                bool isExcludedCategory = false;
+                                if (element.Category != null && config.LevelMode.ExcludedCategories != null)
                                 {
-                                    // Determine the level name to use - custom name if provided, otherwise Revit level name
-                                    string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
-                                        ? config.LevelMode.CustomLevelName
-                                        : config.BaseLevel.Name;
+                                    var categoryId = (BuiltInCategory)element.Category.Id.IntegerValue;
+                                    isExcludedCategory = config.LevelMode.ExcludedCategories.Contains(categoryId);
+                                }
 
-                                    // Fill all selected parameters with the level name
-                                    foreach (var paramName in selectedParameters)
+                                if (isExcludedCategory)
+                                {
+                                    // Use nearest level logic (between base and top only)
+                                    var nearestLevel = _levelAssignmentService.FindNearestLevelBetween(
+                                        element,
+                                        config.BaseLevel,
+                                        config.TopLevel);
+
+                                    if (nearestLevel != null)
                                     {
-                                        var result = _levelAssignmentService.AssignLevelParameter(
-                                            element,
-                                            levelNameToUse,
-                                            processingLogger,
-                                            paramName,
-                                            config.OverwriteExisting);
+                                        string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
+                                            ? config.LevelMode.CustomLevelName
+                                            : nearestLevel.Name;
 
-                                        if (result.Success)
+                                        foreach (var paramName in selectedParameters)
                                         {
-                                            parametersFilled++;
+                                            var result = _levelAssignmentService.AssignLevelParameter(
+                                                element,
+                                                levelNameToUse,
+                                                processingLogger,
+                                                paramName,
+                                                config.OverwriteExisting);
+
+                                            if (result.Success)
+                                            {
+                                                parametersFilled++;
+                                            }
+                                        }
+                                        totalSucessElements.Add(element.Id);
+
+                                        // Log success for the first parameter (to avoid spamming logs)
+                                        if (selectedParameters.Count > 0)
+                                        {
+                                            processingLogger.LogSuccess(element.Id, element.Category?.Name,
+                                                $"Filled {selectedParameters.Count} level parameters (nearest level: {nearestLevel.Name})");
                                         }
                                     }
-
-                                    totalSucessElements.Add(element.Id);
-
-                                    // Log success for the first parameter (to avoid spamming logs)
-                                    if (selectedParameters.Count > 0)
+                                    else
                                     {
-                                        processingLogger.LogSuccess(element.Id, element.Category?.Name,
-                                            $"Filled {selectedParameters.Count} level parameters");
+                                        processingLogger.LogSkip(element.Id, element.Category?.Name, SkipReasons.NoNearestLevel);
                                     }
                                 }
                                 else
                                 {
-                                    // Element is outside level band
-                                    var position = _levelAssignmentService.GetElementPositionInBand(element, config.BaseLevel, config.TopLevel);
-                                    var skipReason = position == LevelBandPosition.BelowBand
-                                        ? SkipReasons.BelowBand
-                                        : SkipReasons.AboveBand;
-                                    processingLogger.LogSkip(element.Id, element.Category?.Name, skipReason);
-                                }
-                            }
+                                    // Standard level band check
+                                    if (_levelAssignmentService.IsElementInLevelBand(
+                                        element,
+                                        config.BaseLevel,
+                                        config.TopLevel,
+                                        config.LevelMode.BaseTolerance,
+                                        config.LevelMode.TopTolerance))
+                                    {
+                                        // Determine the level name to use - custom name if provided, otherwise Revit level name
+                                        string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
+                                            ? config.LevelMode.CustomLevelName
+                                            : config.BaseLevel.Name;
 
-                            document.ActiveView.IsolateElementsTemporary(totalSucessElements);
+                                        // Fill all selected parameters with the level name
+                                        foreach (var paramName in selectedParameters)
+                                        {
+                                            var result = _levelAssignmentService.AssignLevelParameter(
+                                                element,
+                                                levelNameToUse,
+                                                processingLogger,
+                                                paramName,
+                                                config.OverwriteExisting);
+
+                                            if (result.Success)
+                                            {
+                                                parametersFilled++;
+                                            }
+                                        }
+
+                                        totalSucessElements.Add(element.Id);
+
+                                        // Log success for the first parameter (to avoid spamming logs)
+                                        if (selectedParameters.Count > 0)
+                                        {
+                                            processingLogger.LogSuccess(element.Id, element.Category?.Name,
+                                                $"Filled {selectedParameters.Count} level parameters");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Element is outside level band
+                                        var position = _levelAssignmentService.GetElementPositionInBand(element, config.BaseLevel, config.TopLevel);
+                                        var skipReason = position == LevelBandPosition.BelowBand
+                                            ? SkipReasons.BelowBand
+                                            : SkipReasons.AboveBand;
+                                        processingLogger.LogSkip(element.Id, element.Category?.Name, skipReason);
+                                    }
+                                }
+                            }                           
                             transaction.Commit();
                             _logger.Info($"Level mode transaction committed: {parametersFilled} parameter assignments completed");
                         }

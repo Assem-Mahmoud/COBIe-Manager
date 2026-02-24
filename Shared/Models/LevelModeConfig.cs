@@ -1,4 +1,5 @@
 using Autodesk.Revit.DB;
+using System.Collections.Generic;
 
 namespace COBIeManager.Shared.Models
 {
@@ -7,6 +8,11 @@ namespace COBIeManager.Shared.Models
     /// </summary>
     public class LevelModeConfig : FillModeConfigBase
     {
+        /// <summary>
+        /// Categories excluded from level band assignment.
+        /// These categories will use nearest-level logic instead.
+        /// </summary>
+        public IList<BuiltInCategory> ExcludedCategories { get; set; }
         /// <summary>
         /// The lower level defining the vertical band bottom
         /// </summary>

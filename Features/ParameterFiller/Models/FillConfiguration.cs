@@ -160,7 +160,15 @@ namespace COBIeManager.Features.ParameterFiller.Models
             return new FillConfiguration
             {
                 General = GeneralFillSettings.CreateDefault(),
-                LevelMode = new LevelModeConfig { IsEnabled = false },
+                LevelMode = new LevelModeConfig
+                {
+                    IsEnabled = false,
+                    ExcludedCategories = new List<BuiltInCategory>
+                    {
+                        BuiltInCategory.OST_StructuralFraming,  // Beams
+                        BuiltInCategory.OST_Floors               // Slabs/Floors
+                    }
+                },
                 RoomNameMode = new RoomNameModeConfig { IsEnabled = false },
                 RoomNumberMode = new RoomNumberModeConfig { IsEnabled = false },
                 GroupsMode = new GroupsModeConfig { IsEnabled = false },

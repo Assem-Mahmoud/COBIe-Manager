@@ -247,6 +247,38 @@ namespace COBIeManager.Shared.Services
         {
             return GetElementPositionInBand(element, baseLevel, topLevel) == LevelBandPosition.InBand;
         }
+
+        /// <summary>
+        /// Finds the nearest level between two levels (base and top).
+        /// For excluded categories, determines which of the two levels is nearest to the element.
+        /// </summary>
+        /// <param name="element">Element to find nearest level for</param>
+        /// <param name="baseLevel">Base level</param>
+        /// <param name="topLevel">Top level</param>
+        /// <returns>Nearest level (base or top) or null if element has no bounding box</returns>
+        public Level FindNearestLevelBetween(Element element, Level baseLevel, Level topLevel)
+        {
+            if (element == null || baseLevel == null || topLevel == null)
+            {
+                return null;
+            }
+
+            var bbox = element.get_BoundingBox(null);
+            if (bbox == null)
+            {
+                return null;
+            }
+
+            // Use the middle of the element's bounding box
+            var elementElevation = (bbox.Min.Z + bbox.Max.Z) / 2.0;
+
+            // Calculate distances to base and top levels
+            var distanceToBase = System.Math.Abs(baseLevel.Elevation - elementElevation);
+            var distanceToTop = System.Math.Abs(topLevel.Elevation - elementElevation);
+
+            // Return the nearer level (typically top for elements between levels)
+            return distanceToTop <= distanceToBase ? topLevel : baseLevel;
+        }
     }
 
     /// <summary>
