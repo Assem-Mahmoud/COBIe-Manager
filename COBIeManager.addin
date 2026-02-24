@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+	<AddIn Type="Application">
+		<Name>COBIe Manager</Name>
+		<Assembly>"COBIeManager/COBIeManager.dll"</Assembly>
+		<AddInId>8B2D905C-0000-0000-0000-000000000000</AddInId>
+		<FullClassName>COBIeManager.App</FullClassName>
+		<VendorId>AMANA</VendorId>
+		<VendorDescription>COBIe data management and exchange for Revit</VendorDescription>
+	</AddIn>
+</RevitAddIns>
