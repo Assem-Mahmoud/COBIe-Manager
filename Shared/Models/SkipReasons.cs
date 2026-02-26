@@ -11,6 +11,9 @@ namespace COBIeManager.Shared.Models
         public const string AboveBand = "Position: AboveBand";
         public const string NoNearestLevel = "No nearest level found";
 
+        // Level assignment success reasons
+        public const string InBandByCenter = "Center point within level band";
+
         // Room assignment skip reasons
         public const string NoLocation = "No Location";
         public const string NoRoomFound = "No Room Found";

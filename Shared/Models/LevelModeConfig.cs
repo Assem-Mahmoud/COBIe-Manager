@@ -24,32 +24,20 @@ namespace COBIeManager.Shared.Models
         public Level TopLevel { get; set; }
 
         /// <summary>
-        /// Custom level name to use instead of the Revit level name.
+        /// Custom level name to use instead of the base Revit level name.
         /// When set, this value will be used to fill parameters instead of BaseLevel.Name.
         /// Leave empty to use the Revit level name.
         /// </summary>
         public string CustomLevelName { get; set; }
 
         /// <summary>
-        /// Tolerance to extend BELOW the base level in internal units (feet).
-        /// UI input is in millimeters and converted to feet automatically.
-        /// This extends the bottom of the level band downward.
-        /// Elements must be COMPLETELY INSIDE the extended range (base - tolerance to top + topTolerance).
-        /// Default: 0 (strict - original level range)
-        /// Example: 0.5 (stored) = ~152mm UI input extends the base level downward by 6 inches
+        /// Custom level name to use instead of the top Revit level name.
+        /// When set, this value will be used to fill parameters for excluded categories assigned to TopLevel.
+        /// Leave empty to use the Revit level name.
         /// </summary>
-        public double BaseTolerance { get; set; } = 0.0;
+        public string CustomTopLevelName { get; set; }
 
-        /// <summary>
-        /// Tolerance to extend ABOVE the top level in internal units (feet).
-        /// UI input is in millimeters and converted to feet automatically.
-        /// This extends the top of the level band upward.
-        /// Elements must be COMPLETELY INSIDE the extended range (base - baseTolerance to top + tolerance).
-        /// Default: 0 (strict - original level range)
-        /// Example: 1.0 (stored) = ~305mm UI input extends the top level upward by 1 foot
-        /// </summary>
-        public double TopTolerance { get; set; } = 0.0;
-
+      
         /// <summary>
         /// The fill mode this configuration applies to
         /// </summary>

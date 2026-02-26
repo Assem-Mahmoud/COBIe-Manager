@@ -16,9 +16,14 @@ namespace COBIeManager.Features.ParameterFiller.Models
         AboveBand,
 
         /// <summary>
-        /// Element intersects with or is contained within the level band
+        /// Element is completely contained within the level band
         /// </summary>
         InBand,
+
+        /// <summary>
+        /// Element's center point is within the level band (element straddles the boundary)
+        /// </summary>
+        InBandByCenter,
 
         /// <summary>
         /// Element has no bounding box (cannot determine position)

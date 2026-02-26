@@ -10,14 +10,17 @@ namespace COBIeManager.Shared.Interfaces
     public interface ILevelAssignmentService
     {
         /// <summary>
-        /// Gets the position of an element relative to a level band
+        /// Gets the position of an element relative to a level band.
+        /// Uses a two-tier check:
+        /// 1. First checks if element is COMPLETELY INSIDE the level band (with tolerance applied)
+        /// 2. If not, checks if element's CENTER POINT is within the level band (without tolerance)
         /// </summary>
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level</param>
         /// <param name="topLevel">Top level</param>
-        /// <param name="baseTolerance">Tolerance below base level in project units (default: 0)</param>
-        /// <param name="topTolerance">Tolerance above top level in project units (default: 0)</param>
-        /// <returns>Position relative to level band</returns>
+        /// <param name="baseTolerance">Tolerance below base level in project units for complete containment check (default: 0)</param>
+        /// <param name="topTolerance">Tolerance above top level in project units for complete containment check (default: 0)</param>
+        /// <returns>Position relative to level band (InBand, InBandByCenter, BelowBand, AboveBand, or NoBoundingBox)</returns>
         LevelBandPosition GetElementPositionInBand(
             Element element,
             Level baseLevel,
@@ -26,14 +29,15 @@ namespace COBIeManager.Shared.Interfaces
             double topTolerance = 0.0);
 
         /// <summary>
-        /// Checks if an element is within a level band
+        /// Checks if an element is within a level band.
+        /// Returns true if element is completely inside the band OR if its center point is within the band.
         /// </summary>
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level of band</param>
         /// <param name="topLevel">Top level of band</param>
         /// <param name="baseTolerance">Tolerance below base level in project units (default: 0)</param>
         /// <param name="topTolerance">Tolerance above top level in project units (default: 0)</param>
-        /// <returns>True if element intersects the level band</returns>
+        /// <returns>True if element is within the level band (fully inside or by center)</returns>
         bool IsElementInLevelBand(
             Element element,
             Level baseLevel,

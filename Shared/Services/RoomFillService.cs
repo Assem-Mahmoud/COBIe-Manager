@@ -45,6 +45,9 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(config));
             }
 
+            // Clear any previous wall-room associations
+            _wallRoomAssociations.Clear();
+
             _logger.Info("Starting room-only fill preview analysis");
 
             var summary = new RoomFillPreviewSummary();
@@ -69,6 +72,16 @@ namespace COBIeManager.Shared.Services
 
             // Collect elements
             var elements = CollectElements(document, selectedCategories, summary);
+
+            // Check if Walls category is selected - if so, also collect room boundary walls for preview
+            bool wallsCategorySelected = selectedCategories.Contains(BuiltInCategory.OST_Walls);
+            if (wallsCategorySelected)
+            {
+                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, elements, summary);
+                elements = elements.Union(roomBoundaryWalls).ToList();
+                _logger.Info($"Preview: Added {roomBoundaryWalls.Count} room boundary walls to processing list");
+            }
+
             if (!elements.Any())
             {
                 _logger.Info("No elements found for room fill preview");
@@ -92,7 +105,23 @@ namespace COBIeManager.Shared.Services
                 }
 
                 // Try to find room for element
-                var room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                Room room = null;
+
+                // For walls, use the pre-computed wall-room associations
+                if (element.Category != null && element.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Walls)
+                {
+                    int wallId = element.Id.IntegerValue;
+                    if (_wallRoomAssociations.TryGetValue(wallId, out room))
+                    {
+                        _logger.Debug($"Preview: Element {element.Id} (Wall): Room found via boundary association");
+                    }
+                }
+                else
+                {
+                    // For other elements, use the standard room detection
+                    room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                }
+
                 if (room != null)
                 {
                     roomsFoundCount++;
@@ -134,6 +163,9 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(config));
             }
 
+            // Clear any previous wall-room associations
+            _wallRoomAssociations.Clear();
+
             _logger.Info("Starting room-only fill operation");
 
             var stopwatch = Stopwatch.StartNew();
@@ -158,7 +190,8 @@ namespace COBIeManager.Shared.Services
 
             // Get the appropriate parameters based on FillMode using bitwise operations
             // Support multiple modes simultaneously by combining parameters from all enabled modes
-            var allSelectedParameters = new List<string>();
+            // Get ParameterItems instead of just names to preserve ApplicableMode information
+            var allSelectedParameters = new List<ParameterItem>();
             var fillTypes = new List<string>();
 
             bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
@@ -167,7 +200,7 @@ namespace COBIeManager.Shared.Services
             // Collect parameters from all enabled modes
             if (hasRoomNameMode)
             {
-                var roomNameParams = config.GetRoomNameModeParameters();
+                var roomNameParams = config.GetSelectedParameters().Where(p => p.ApplicableMode == FillMode.RoomName).ToList();
                 allSelectedParameters.AddRange(roomNameParams);
                 fillTypes.Add("room name");
                 _logger.Info($"RoomName mode enabled: {roomNameParams.Count} parameters");
@@ -175,7 +208,7 @@ namespace COBIeManager.Shared.Services
 
             if (hasRoomNumberMode)
             {
-                var roomNumberParams = config.GetRoomNumberModeParameters();
+                var roomNumberParams = config.GetSelectedParameters().Where(p => p.ApplicableMode == FillMode.RoomNumber).ToList();
                 allSelectedParameters.AddRange(roomNumberParams);
                 fillTypes.Add("room number");
                 _logger.Info($"RoomNumber mode enabled: {roomNumberParams.Count} parameters");
@@ -184,7 +217,10 @@ namespace COBIeManager.Shared.Services
             // Fallback - if no modes enabled, use all room parameters
             if (!hasRoomNameMode && !hasRoomNumberMode)
             {
-                allSelectedParameters.AddRange(config.GetRoomModeParameters());
+                var allRoomParams = config.GetSelectedParameters()
+                    .Where(p => p.ApplicableMode == FillMode.RoomName || p.ApplicableMode == FillMode.RoomNumber)
+                    .ToList();
+                allSelectedParameters.AddRange(allRoomParams);
                 fillTypes.Add("room");
             }
 
@@ -195,11 +231,22 @@ namespace COBIeManager.Shared.Services
             }
 
             string fillType = string.Join(" and ", fillTypes);
-            _logger.Info($"Filling {allSelectedParameters.Count} {fillType} parameters: {string.Join(", ", allSelectedParameters)}");
+            var paramNames = allSelectedParameters.Select(p => p.ParameterName).ToList();
+            var paramDetails = allSelectedParameters.Select(p => $"'{p.ParameterName}' (Mode={p.ApplicableMode})").ToList();
+            _logger.Info($"Filling {allSelectedParameters.Count} {fillType} parameters: {string.Join(", ", paramDetails)}");
 
             // Collect elements
             var previewSummary = new RoomFillPreviewSummary();
             var elements = CollectElements(document, selectedCategories, previewSummary);
+
+            // Check if Walls category is selected - if so, also collect room boundary walls
+            bool wallsCategorySelected = selectedCategories.Contains(BuiltInCategory.OST_Walls);
+            if (wallsCategorySelected)
+            {
+                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, elements, previewSummary);
+                elements = elements.Union(roomBoundaryWalls).ToList();
+                _logger.Info($"Added {roomBoundaryWalls.Count} room boundary walls to processing list");
+            }
 
             if (!elements.Any())
             {
@@ -237,7 +284,26 @@ namespace COBIeManager.Shared.Services
                         }
 
                         // Try to find room for element
-                        var room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                        Room room = null;
+
+                        // For walls, use the pre-computed wall-room associations
+                        if (element.Category != null && element.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Walls)
+                        {
+                            int wallId = element.Id.IntegerValue;
+                            if (_wallRoomAssociations.TryGetValue(wallId, out room))
+                            {
+                                _logger.Debug($"Element {element.Id} (Wall): Room found via boundary association - '{room.Number}: {room.Name}'");
+                            }
+                            else
+                            {
+                                _logger.Debug($"Element {element.Id} (Wall): No boundary room association found");
+                            }
+                        }
+                        else
+                        {
+                            // For other elements, use the standard room detection
+                            room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                        }
 
                         if (room != null)
                         {
@@ -250,61 +316,27 @@ namespace COBIeManager.Shared.Services
 
                             // Fill each selected parameter individually
                             int parametersAssigned = 0;
-                            foreach (var paramName in allSelectedParameters)
+                            foreach (var paramItem in allSelectedParameters)
                             {
-                                // Determine what value to fill based on FillMode and parameter name
-                                string valueToFill = GetRoomValueForParameter(paramName, room, config.FillMode);
+                                // Determine what value to fill based on the parameter's ApplicableMode
+                                _logger.Debug($"Processing parameter '{paramItem.ParameterName}' with ApplicableMode={paramItem.ApplicableMode}");
+                                string valueToFill = GetRoomValueForParameter(paramItem.ApplicableMode, room);
 
                                 if (valueToFill != null)
                                 {
                                     // Try to set the parameter
-                                    if (TrySetParameter(element, paramName, valueToFill, config.OverwriteExisting))
+                                    if (TrySetParameter(element, paramItem.ParameterName, valueToFill, config.OverwriteExisting))
                                     {
                                         parametersAssigned++;
 
-                                        // Track statistics based on parameter type
-                                        // Use parameter name detection when multiple modes are enabled
-                                        bool multipleModesEnabled = hasRoomNameMode && hasRoomNumberMode;
-
-                                        if (multipleModesEnabled)
-                                        {
-                                            // When multiple modes are enabled, detect by parameter name
-                                            if (IsRoomNameParameter(paramName))
-                                            {
-                                                summary.RoomNameParametersFilled++;
-                                            }
-                                            else if (IsRoomNumberParameter(paramName))
-                                            {
-                                                summary.RoomNumberParametersFilled++;
-                                            }
-                                            else if (IsRoomRefParameter(paramName))
-                                            {
-                                                summary.RoomRefParametersFilled++;
-                                            }
-                                        }
-                                        else if (hasRoomNameMode)
+                                        // Track statistics based on parameter's ApplicableMode
+                                        if (paramItem.ApplicableMode == FillMode.RoomName)
                                         {
                                             summary.RoomNameParametersFilled++;
                                         }
-                                        else if (hasRoomNumberMode)
+                                        else if (paramItem.ApplicableMode == FillMode.RoomNumber)
                                         {
                                             summary.RoomNumberParametersFilled++;
-                                        }
-                                        else
-                                        {
-                                            // Fallback - use parameter type detection
-                                            if (IsRoomNameParameter(paramName))
-                                            {
-                                                summary.RoomNameParametersFilled++;
-                                            }
-                                            else if (IsRoomNumberParameter(paramName))
-                                            {
-                                                summary.RoomNumberParametersFilled++;
-                                            }
-                                            else if (IsRoomRefParameter(paramName))
-                                            {
-                                                summary.RoomRefParametersFilled++;
-                                            }
                                         }
                                     }
                                 }
@@ -393,6 +425,118 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
+        /// Dictionary to track which room each wall is associated with
+        /// Key: Wall Element Id, Value: Room
+        /// </summary>
+        private Dictionary<int, Room> _wallRoomAssociations = new Dictionary<int, Room>();
+
+        /// <summary>
+        /// Collects walls that are room boundaries and associates them with their adjacent rooms
+        /// </summary>
+        /// <param name="document">Revit document</param>
+        /// <param name="currentElements">Currently collected elements (to filter out duplicates)</param>
+        /// <param name="previewSummary">Preview summary to populate with empty categories</param>
+        /// <returns>List of room boundary walls</returns>
+        private IList<Element> CollectRoomBoundaryWalls(
+            Document document,
+            IList<Element> currentElements,
+            RoomFillPreviewSummary previewSummary)
+        {
+            var boundaryWalls = new List<Element>();
+            var currentElementIds = new HashSet<int>(currentElements.Select(e => e.Id.IntegerValue));
+
+            _wallRoomAssociations.Clear();
+
+            try
+            {
+                // Collect all rooms in the document
+                var rooms = new FilteredElementCollector(document)
+                    .WhereElementIsNotElementType()
+                    .OfCategory(BuiltInCategory.OST_Rooms)
+                    .OfType<Room>()
+                    .Where(r => r.Area > 0 && r.Location != null)
+                    .ToList();
+
+                _logger.Info($"Found {rooms.Count} rooms for boundary wall detection");
+
+                // For each room, get its boundary segments and find associated walls
+                foreach (var room in rooms)
+                {
+                    try
+                    {
+                        // Get boundary segments for the room at all levels
+                        var boundarySegments = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+
+                        foreach (var boundarySegmentList in boundarySegments)
+                        {
+                            foreach (var segment in boundarySegmentList)
+                            {
+                                // Try to get the element associated with this boundary segment
+                                Element element = null;
+                                try
+                                {
+                                    // Get the element through the ElementId property (Revit 2024+)
+                                    #if REVIT_2024 || REVIT_2025 || REVIT_2026
+                                    element = document.GetElement(segment.ElementId);
+                                    #else
+                                    // For older Revit versions, try GetElement method if available
+                                    try
+                                    {
+                                        element = segment.GetElement();
+                                    }
+                                    catch
+                                    {
+                                        // Fallback: try getting element through ElementId
+                                        element = document.GetElement(segment.ElementId);
+                                    }
+                                    #endif
+                                }
+                                catch
+                                {
+                                    // If getting element fails, skip this segment
+                                    continue;
+                                }
+
+                                if (element != null && element.Category != null)
+                                {
+                                    // Check if the boundary element is a wall
+                                    if (element.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Walls)
+                                    {
+                                        int wallId = element.Id.IntegerValue;
+
+                                        // Add to boundary walls list if not already processed
+                                        if (!currentElementIds.Contains(wallId) && !boundaryWalls.Any(w => w.Id.IntegerValue == wallId))
+                                        {
+                                            boundaryWalls.Add(element);
+                                        }
+
+                                        // Store wall-room association (prefer first room found)
+                                        if (!_wallRoomAssociations.ContainsKey(wallId))
+                                        {
+                                            _wallRoomAssociations[wallId] = room;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug($"Error getting boundaries for room {room.Id}: {ex.Message}");
+                    }
+                }
+
+                _logger.Info($"Found {boundaryWalls.Count} unique room boundary walls");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Error collecting room boundary walls", ex);
+            }
+
+            return boundaryWalls;
+        }
+
+        /// <summary>
         /// Gets the center point of an element for room detection
         /// </summary>
         /// <param name="element">Element to get point from</param>
@@ -439,70 +583,39 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
-        /// Determines what room value to fill based on parameter name and FillMode
+        /// Determines what room value to fill based on the parameter's ApplicableMode
         /// </summary>
-        /// <param name="paramName">Parameter name</param>
+        /// <param name="applicableMode">The FillMode this parameter is mapped to</param>
         /// <param name="room">Room object</param>
-        /// <param name="fillMode">The FillMode being used (flags-based)</param>
         /// <returns>Value to fill, or null if parameter type is unknown</returns>
-        private string GetRoomValueForParameter(string paramName, Room room, Shared.Models.FillMode fillMode)
+        private string GetRoomValueForParameter(FillMode applicableMode, Room room)
         {
-            if (room == null || string.IsNullOrWhiteSpace(paramName))
+            if (room == null)
             {
                 return null;
             }
 
-            // Check which room mode is selected using bitwise operations
-            bool hasRoomNameMode = (fillMode & FillMode.RoomName) != 0;
-            bool hasRoomNumberMode = (fillMode & FillMode.RoomNumber) != 0;
-
-            // When multiple modes are enabled, use parameter name detection to determine
-            // the appropriate value. This allows both RoomName and RoomNumber parameters
-            // to be filled in a single operation when both modes are selected.
-
-            // First, try parameter name detection (works for all cases including multiple modes)
-            // Check if parameter is for room name
-            if (IsRoomNameParameter(paramName))
+            // Use the parameter's ApplicableMode to determine what value to fill
+            // This ensures that parameters mapped to Room Name mode get room names,
+            // and parameters mapped to Room Number mode get room numbers.
+            string result = null;
+            switch (applicableMode)
             {
-                return room.Name;
-            }
+                case FillMode.RoomName:
+                    result = room.Name;
+                    _logger.Debug($"GetRoomValueForParameter: ApplicableMode=RoomName, returning room.Name='{result}'");
+                    return result;
 
-            // Check if parameter is for room number
-            if (IsRoomNumberParameter(paramName))
-            {
-                return room.Number;
-            }
+                case FillMode.RoomNumber:
+                    result = room.Number;
+                    _logger.Debug($"GetRoomValueForParameter: ApplicableMode=RoomNumber, returning room.Number='{result}'");
+                    return result;
 
-            // Check if parameter is for room reference (combined)
-            if (IsRoomRefParameter(paramName))
-            {
-                return $"{room.Number}: {room.Name}";
+                default:
+                    // Unknown mode - log warning and return null
+                    _logger.Warn($"Unknown ApplicableMode '{applicableMode}' for room parameter fill");
+                    return null;
             }
-
-            // For single mode selection (legacy support), use mode-based detection
-            if (hasRoomNameMode && !hasRoomNumberMode)
-            {
-                return room.Name;
-            }
-
-            if (hasRoomNumberMode && !hasRoomNameMode)
-            {
-                return room.Number;
-            }
-
-            // Default: try to determine from parameter name
-            var lowerParam = paramName.ToLower();
-            if (lowerParam.Contains("name") && !lowerParam.Contains("number"))
-            {
-                return room.Name;
-            }
-            if (lowerParam.Contains("number") || lowerParam.Contains("num"))
-            {
-                return room.Number;
-            }
-
-            // Fallback to room name as default
-            return room.Name;
         }
 
         /// <summary>

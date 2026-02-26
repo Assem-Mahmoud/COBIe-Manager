@@ -150,6 +150,7 @@ namespace COBIeManager.Shared.Services
                     _logger.Info($"Previewing {elements.Count} elements for level mode");
 
                     int inBandCount = 0;
+                    int inBandByCenterCount = 0;
                     int nearestLevelCount = 0;
 
                     foreach (var element in elements)
@@ -176,21 +177,26 @@ namespace COBIeManager.Shared.Services
                         }
                         else
                         {
-                            // Standard level band check
-                            if (_levelAssignmentService.IsElementInLevelBand(
+                            // Standard level band check - get position to distinguish fully inside vs center
+                            var position = _levelAssignmentService.GetElementPositionInBand(
                                 element,
                                 config.BaseLevel,
-                                config.TopLevel,
-                                config.LevelMode.BaseTolerance,
-                                config.LevelMode.TopTolerance))
+                                config.TopLevel
+                                );
+
+                            if (position == LevelBandPosition.InBand)
                             {
                                 inBandCount++;
+                            }
+                            else if (position == LevelBandPosition.InBandByCenter)
+                            {
+                                inBandByCenterCount++;
                             }
                         }
                     }
 
-                    summary.EstimatedElementsToProcess += inBandCount + nearestLevelCount;
-                    _logger.Info($"Level mode preview: {inBandCount} elements in level band, {nearestLevelCount} elements using nearest level");
+                    summary.EstimatedElementsToProcess += inBandCount + inBandByCenterCount + nearestLevelCount;
+                    _logger.Info($"Level mode preview: {inBandCount} fully in band, {inBandByCenterCount} by center, {nearestLevelCount} using nearest level");
                 }
             }
 
@@ -347,9 +353,20 @@ namespace COBIeManager.Shared.Services
 
                                     if (nearestLevel != null)
                                     {
-                                        string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
-                                            ? config.LevelMode.CustomLevelName
-                                            : nearestLevel.Name;
+                                        // Determine which custom name to use based on the nearest level
+                                        string levelNameToUse;
+                                        if (nearestLevel.Id == config.LevelMode.TopLevel.Id)
+                                        {
+                                            levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomTopLevelName)
+                                                ? config.LevelMode.CustomTopLevelName
+                                                : nearestLevel.Name;
+                                        }
+                                        else
+                                        {
+                                            levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
+                                                ? config.LevelMode.CustomLevelName
+                                                : nearestLevel.Name;
+                                        }
 
                                         foreach (var paramName in selectedParameters)
                                         {
@@ -381,13 +398,14 @@ namespace COBIeManager.Shared.Services
                                 }
                                 else
                                 {
-                                    // Standard level band check
-                                    if (_levelAssignmentService.IsElementInLevelBand(
+                                    // Get element position to distinguish fully inside vs center-based
+                                    var position = _levelAssignmentService.GetElementPositionInBand(
                                         element,
                                         config.BaseLevel,
-                                        config.TopLevel,
-                                        config.LevelMode.BaseTolerance,
-                                        config.LevelMode.TopTolerance))
+                                        config.TopLevel
+                                       );
+
+                                    if (position == LevelBandPosition.InBand || position == LevelBandPosition.InBandByCenter)
                                     {
                                         // Determine the level name to use - custom name if provided, otherwise Revit level name
                                         string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
@@ -412,17 +430,18 @@ namespace COBIeManager.Shared.Services
 
                                         totalSucessElements.Add(element.Id);
 
-                                        // Log success for the first parameter (to avoid spamming logs)
+                                        // Log success with distinct message for center-based matches
                                         if (selectedParameters.Count > 0)
                                         {
-                                            processingLogger.LogSuccess(element.Id, element.Category?.Name,
-                                                $"Filled {selectedParameters.Count} level parameters");
+                                            string logMessage = position == LevelBandPosition.InBandByCenter
+                                                ? $"Filled {selectedParameters.Count} level parameters ({SkipReasons.InBandByCenter})"
+                                                : $"Filled {selectedParameters.Count} level parameters";
+                                            processingLogger.LogSuccess(element.Id, element.Category?.Name, logMessage);
                                         }
                                     }
                                     else
                                     {
                                         // Element is outside level band
-                                        var position = _levelAssignmentService.GetElementPositionInBand(element, config.BaseLevel, config.TopLevel);
                                         var skipReason = position == LevelBandPosition.BelowBand
                                             ? SkipReasons.BelowBand
                                             : SkipReasons.AboveBand;

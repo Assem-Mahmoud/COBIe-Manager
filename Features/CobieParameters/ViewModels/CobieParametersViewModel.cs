@@ -549,7 +549,7 @@ public partial class CobieParametersViewModel : ObservableObject
         _logger?.Info($"[ViewModel] Loading collections for hub: {FixedHubId}, group: {FixedGroupId}");
 
         StatusMessage = "Loading collections...";
-        LoadingOverlayService.Show("Loading COBie Parameters", "Fetching collections and labels...");
+        LoadingOverlayService.Show("Loading APS Parameters", "Fetching collections and labels...");
 
         try
         {

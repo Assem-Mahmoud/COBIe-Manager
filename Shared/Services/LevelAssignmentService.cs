@@ -68,6 +68,26 @@ namespace COBIeManager.Shared.Services
                         }
                         break;
 
+                    case LevelBandPosition.InBandByCenter:
+                        // Element's center is within the level band
+                        var centerAssignResult = AssignLevelParameter(element, levelName, logger);
+                        if (centerAssignResult.Success)
+                        {
+                            result.ElementsAssigned++;
+                            logger.LogSuccess(element.Id, element.Category?.Name, $"Assigned to level '{levelName}' ({SkipReasons.InBandByCenter})");
+                        }
+                        else if (centerAssignResult.Skipped)
+                        {
+                            result.ElementsSkippedNoBoundingBox++;
+                            logger.LogSkip(element.Id, element.Category?.Name, centerAssignResult.SkipReason);
+                        }
+                        else
+                        {
+                            result.ElementsFailed++;
+                            logger.LogSkip(element.Id, element.Category?.Name, centerAssignResult.SkipReason ?? SkipReasons.FailedToAssignParameter);
+                        }
+                        break;
+
                     case LevelBandPosition.NoBoundingBox:
                         result.ElementsSkippedNoBoundingBox++;
                         logger.LogSkip(element.Id, element.Category?.Name, SkipReasons.NoBoundingBox);
@@ -95,16 +115,15 @@ namespace COBIeManager.Shared.Services
 
         /// <summary>
         /// Gets the position of an element relative to a level band.
-        /// Tolerance extends the band range:
-        /// - Base tolerance extends the bottom of the band downward
-        /// - Top tolerance extends the top of the band upward
-        /// Elements must be COMPLETELY INSIDE the extended range to be considered InBand.
+        /// Uses a two-tier check:
+        /// 1. First checks if element is COMPLETELY INSIDE the level band
+        /// 2. If not, checks if element's CENTER POINT is within the level band (for elements straddling boundaries)
         /// </summary>
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level</param>
         /// <param name="topLevel">Top level</param>
-        /// <param name="baseTolerance">Tolerance to extend below base level (project units)</param>
-        /// <param name="topTolerance">Tolerance to extend above top level (project units)</param>
+        /// <param name="baseTolerance">Tolerance to extend below base level (project units) - not used for center check</param>
+        /// <param name="topTolerance">Tolerance to extend above top level (project units) - not used for center check</param>
         /// <returns>Position relative to level band</returns>
         public LevelBandPosition GetElementPositionInBand(
             Element element,
@@ -129,27 +148,32 @@ namespace COBIeManager.Shared.Services
             var baseElevation = baseLevel.Elevation;
             var topElevation = topLevel.Elevation;
 
-            // Extend the band with tolerance
-            // baseTolerance extends the bottom downward (subtracted from base)
-            // topTolerance extends the top upward (added to top)
+            // Extend the band with tolerance for complete containment check
             var adjustedBase = baseElevation - baseTolerance;
             var adjustedTop = topElevation + topTolerance;
 
-            // Element must be COMPLETELY INSIDE the extended range
-            // Check if element's minimum point is below the extended base level
+            // First check: Is element COMPLETELY INSIDE the extended range?
+            if (bbox.Min.Z >= adjustedBase && bbox.Max.Z <= adjustedTop)
+            {
+                return LevelBandPosition.InBand;
+            }
+
+            // Second check: Is element's CENTER within the level band (no tolerance)?
+            // This handles elements that straddle the boundary but whose center is in range
+            double centerZ = (bbox.Min.Z + bbox.Max.Z) / 2.0;
+            if (centerZ >= baseElevation && centerZ <= topElevation)
+            {
+                return LevelBandPosition.InBandByCenter;
+            }
+
+            // Determine position based on minimum point
             if (bbox.Min.Z < adjustedBase)
             {
                 return LevelBandPosition.BelowBand;
             }
 
-            // Check if element's maximum point is above the extended top level
-            if (bbox.Max.Z > adjustedTop)
-            {
-                return LevelBandPosition.AboveBand;
-            }
-
-            // Element is completely within the extended band range
-            return LevelBandPosition.InBand;
+            // Must be above band
+            return LevelBandPosition.AboveBand;
         }
 
         /// <summary>
@@ -160,7 +184,7 @@ namespace COBIeManager.Shared.Services
         /// <param name="topLevel">Top level of band</param>
         /// <param name="baseTolerance">Tolerance to extend below base level (project units)</param>
         /// <param name="topTolerance">Tolerance to extend above top level (project units)</param>
-        /// <returns>True if element is completely inside the level band</returns>
+        /// <returns>True if element is completely inside or has center within the level band</returns>
         public bool IsElementInLevelBand(
             Element element,
             Level baseLevel,
@@ -168,7 +192,8 @@ namespace COBIeManager.Shared.Services
             double baseTolerance = 0.0,
             double topTolerance = 0.0)
         {
-            return GetElementPositionInBand(element, baseLevel, topLevel, baseTolerance, topTolerance) == LevelBandPosition.InBand;
+            var position = GetElementPositionInBand(element, baseLevel, topLevel, baseTolerance, topTolerance);
+            return position == LevelBandPosition.InBand || position == LevelBandPosition.InBandByCenter;
         }
 
         /// <summary>
@@ -242,10 +267,11 @@ namespace COBIeManager.Shared.Services
         /// <param name="element">Element to check</param>
         /// <param name="baseLevel">Bottom level of band</param>
         /// <param name="topLevel">Top level of band</param>
-        /// <returns>True if element intersects the level band</returns>
+        /// <returns>True if element is completely inside or has center within the level band</returns>
         public bool IsElementInLevelBand(Element element, Level baseLevel, Level topLevel)
         {
-            return GetElementPositionInBand(element, baseLevel, topLevel) == LevelBandPosition.InBand;
+            var position = GetElementPositionInBand(element, baseLevel, topLevel);
+            return position == LevelBandPosition.InBand || position == LevelBandPosition.InBandByCenter;
         }
 
         /// <summary>

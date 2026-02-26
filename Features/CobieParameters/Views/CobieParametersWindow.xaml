@@ -159,55 +159,72 @@
                         </StackPanel>
 
                         <!--  Auth Status Badge  -->
-                        <Border Grid.Column="1" Margin="16,0,0,0">
-                            <Border.Style>
-                                <Style BasedOn="{StaticResource StatusBadge}" TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
-                                    <Setter Property="Background" Value="#FFEBEE" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                            <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
-                                            <Setter Property="Background" Value="#E8F5E9" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    Width="16"
-                                    Height="16"
-                                    Margin="0,0,8,0"
-                                    VerticalAlignment="Center"
-                                    Kind="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusIconConverter}}">
-                                    <materialDesign:PackIcon.Style>
-                                        <Style TargetType="materialDesign:PackIcon">
-                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </materialDesign:PackIcon.Style>
-                                </materialDesign:PackIcon>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="13"
-                                    FontWeight="SemiBold"
-                                    Text="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusConverter}}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Border Margin="16,0,0,0">
+                                <Border.Style>
+                                    <Style BasedOn="{StaticResource StatusBadge}" TargetType="Border">
+                                        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}" />
+                                        <Setter Property="Background" Value="#FFEBEE" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                                <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}" />
+                                                <Setter Property="Background" Value="#E8F5E9" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                        Width="16"
+                                        Height="16"
+                                        Margin="0,0,8,0"
+                                        VerticalAlignment="Center"
+                                        Kind="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusIconConverter}}">
+                                        <materialDesign:PackIcon.Style>
+                                            <Style TargetType="materialDesign:PackIcon">
+                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </materialDesign:PackIcon.Style>
+                                    </materialDesign:PackIcon>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Text="{Binding IsAuthenticated, Converter={StaticResource BoolToAuthStatusConverter}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Button
+                                Grid.Row="0"
+                                Grid.Column="2"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                Command="{Binding LoginCommand}"
+                                Style="{StaticResource PrimaryActionButton}"
+                                Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Login" />
+                                    <TextBlock Margin="8,0" Text="Login" />
+                                </StackPanel>
+
+                            </Button>
+                        </StackPanel>
+
                     </Grid>
                 </materialDesign:Card>
 
@@ -256,15 +273,7 @@
                                 Style="{StaticResource ModernComboBox}" />
                         </StackPanel>
 
-                        <Button
-                            Grid.Row="0"
-                            Grid.Column="2"
-                            Margin="16,0,0,0"
-                            VerticalAlignment="Center"
-                            Command="{Binding LoginCommand}"
-                            Content="Login"
-                            Style="{StaticResource PrimaryActionButton}"
-                            Visibility="{Binding IsAuthenticated, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
 
                         <!--  Parameter Options Row  -->
                         <StackPanel
@@ -337,10 +346,14 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
-                            <!-- Header Section with Title and Clear Button -->
+                            <!--  Header Section with Title and Clear Button  -->
                             <DockPanel Grid.Row="0" VerticalAlignment="Center">
                                 <!--  Label Filters Header  -->
-                                <materialDesign:PackIcon Kind="filter" Width="30" Height="30" VerticalAlignment="Center"/>
+                                <materialDesign:PackIcon
+                                    Width="30"
+                                    Height="30"
+                                    VerticalAlignment="Center"
+                                    Kind="filter" />
                                 <TextBlock
                                     Margin="8,8,8,12"
                                     VerticalAlignment="Center"
@@ -360,27 +373,27 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <!--  Clear Labels Button  -->
-                                <Button                                    
+                                <Button
                                     Padding="10,6"
                                     HorizontalAlignment="Right"
                                     Command="{Binding ClearLabelFiltersCommand}"
                                     DockPanel.Dock="Right"
-                                    ToolTip="Clear Labels"
                                     Style="{StaticResource MaterialDesignIconButton}"
+                                    ToolTip="Clear Labels"
                                     Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <StackPanel Orientation="Horizontal">
                                         <materialDesign:PackIcon
                                             Width="16"
-                                            Height="16"                                            
+                                            Height="16"
                                             Kind="Close" />
-                                        
+
                                     </StackPanel>
                                 </Button>
                             </DockPanel>
 
                             <!--  Label Search Box  -->
                             <Border
-                                Grid.Row="1"                               
+                                Grid.Row="1"
                                 Padding="8,6"
                                 Background="White"
                                 BorderBrush="#E0E0E0"
@@ -622,9 +635,11 @@
                             <!--  Parameters Table  -->
                             <DataGrid
                                 AutoGenerateColumns="False"
+                                Background="{DynamicResource MaterialDesignCardBackground}"
                                 CanUserAddRows="False"
-                                CanUserReorderColumns="False"
-                                CanUserResizeColumns="False"
+                                CanUserDeleteRows="False"
+                                CanUserReorderColumns="False"                               
+                                CanUserResizeColumns="True"
                                 CanUserSortColumns="True"
                                 GridLinesVisibility="All"
                                 HeadersVisibility="Column"
@@ -637,18 +652,18 @@
                                 Visibility="{Binding IsLoading, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn
-                                        Width="50"
+                                        Width="60"
                                         Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         EditingElementStyle="{StaticResource MaterialDesignCheckBox}"
                                         ElementStyle="{StaticResource MaterialDesignCheckBox}" />
                                     <DataGridTextColumn
-                                        Width="*"
+                                        Width="200"
                                         Binding="{Binding Name}"
                                         FontSize="14"
                                         FontWeight="Medium"
                                         Header="Parameter Name" />
                                     <DataGridTextColumn
-                                        Width="120"
+                                        Width="150"
                                         Binding="{Binding CollectionName}"
                                         FontSize="12"
                                         Header="Collection" />
@@ -658,7 +673,7 @@
                                         FontSize="12"
                                         Header="Labels" />
                                     <DataGridTextColumn
-                                        Width="100"
+                                        Width="120"
                                         Binding="{Binding CategoryCountDisplay}"
                                         FontSize="12"
                                         Header="Categories" />
@@ -673,7 +688,7 @@
                                         FontSize="12"
                                         Header="Inst./Type" />
                                     <DataGridTextColumn
-                                        Width="140"
+                                        Width="100"
                                         Binding="{Binding GroupDisplay}"
                                         FontSize="12"
                                         Header="Group" />

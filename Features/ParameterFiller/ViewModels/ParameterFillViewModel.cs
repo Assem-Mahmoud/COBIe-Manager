@@ -11,6 +11,7 @@ using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.DependencyInjection;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Models;
+using COBIeManager.Shared.Services;
 
 namespace COBIeManager.Features.ParameterFiller.ViewModels
 {
@@ -857,6 +858,9 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 IsProcessing = true;
                 StatusMessage = "Running preview...";
 
+                // Show loading overlay
+                LoadingOverlayService.Show("Running Preview", "Analyzing elements and parameters...");
+
                 // Update configuration with selected categories and parameters
                 UpdateConfigWithSelectedCategories();
 
@@ -872,6 +876,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         StatusMessage = $"Configuration error: {Config.GetValidationError()}";
                     }
                     IsProcessing = false;
+                    LoadingOverlayService.Hide();
                     return;
                 }
 
@@ -879,6 +884,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 {
                     StatusMessage = "No document available";
                     IsProcessing = false;
+                    LoadingOverlayService.Hide();
                     return;
                 }
 
@@ -907,6 +913,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             finally
             {
                 IsProcessing = false;
+                LoadingOverlayService.Hide();
             }
         }
 
@@ -965,6 +972,9 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 IsProcessing = true;
                 StatusMessage = "Filling parameters...";
 
+                // Show loading overlay
+                LoadingOverlayService.Show("Applying Parameters", "Starting fill operation...");
+
                 // Update configuration with selected categories and parameters
                 UpdateConfigWithSelectedCategories();
 
@@ -978,6 +988,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         .Select(p => p.DisplayName).ToList();
                     StatusMessage = $"Please map all selected parameters first. Unmapped: {string.Join(", ", unmapped)}";
                     IsProcessing = false;
+                    LoadingOverlayService.Hide();
                     return;
                 }
 
@@ -990,6 +1001,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         StatusMessage = $"Configuration error: {Config.GetValidationError()}";
                     }
                     IsProcessing = false;
+                    LoadingOverlayService.Hide();
                     return;
                 }
 
@@ -997,6 +1009,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 {
                     StatusMessage = "No document available";
                     IsProcessing = false;
+                    LoadingOverlayService.Hide();
                     return;
                 }
 
@@ -1007,31 +1020,24 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     (current, message) =>
                     {
                         StatusMessage = message;
+                        LoadingOverlayService.UpdateMessage("Applying Parameters", message);
                     });
 
                 // Display results
                 var resultMessage = summary.ToFormattedString();
-                System.Windows.MessageBox.Show(
-                    resultMessage,
-                    "Parameter Fill Complete",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Information);
+               
 
                 StatusMessage = $"Filled {summary.LevelParametersFilled} level parameters " +
                               $"in {summary.ProcessingDuration.TotalSeconds:F2} seconds";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Fill failed: {ex.Message}";
-                System.Windows.MessageBox.Show(
-                    $"Failed to fill parameters:\n\n{ex.Message}",
-                    "Error",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
+                StatusMessage = $"Fill failed: {ex.Message}";               
             }
             finally
             {
                 IsProcessing = false;
+                LoadingOverlayService.Hide();
             }
         }
     }
