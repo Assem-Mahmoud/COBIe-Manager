@@ -70,5 +70,14 @@ namespace COBIeManager.Shared.Interfaces
         /// <param name="topLevel">Top level</param>
         /// <returns>Nearest level (base or top) or null if element has no bounding box</returns>
         Level FindNearestLevelBetween(Element element, Level baseLevel, Level topLevel);
+
+        /// <summary>
+        /// Finds the nearest level among a list of levels.
+        /// For excluded categories, determines which level from the list is nearest to the element.
+        /// </summary>
+        /// <param name="element">Element to find nearest level for</param>
+        /// <param name="levels">List of levels to search (must contain at least 2)</param>
+        /// <returns>Nearest level from the list or null if element has no bounding box or list is empty</returns>
+        Level FindNearestLevelAmong(Element element, IList<Level> levels);
     }
 }

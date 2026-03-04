@@ -175,7 +175,7 @@ public partial class MyViewModel : ObservableObject
     [ObservableProperty]
     private string _title;
 
-    // Command with auto-generated relay command
+    // Command with auto-generated 
     [RelayCommand]
     private void ExecuteAction()
     {

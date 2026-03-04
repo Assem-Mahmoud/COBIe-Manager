@@ -1,5 +1,7 @@
 using Autodesk.Revit.DB;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace COBIeManager.Shared.Models
 {
@@ -13,29 +15,25 @@ namespace COBIeManager.Shared.Models
         /// These categories will use nearest-level logic instead.
         /// </summary>
         public IList<BuiltInCategory> ExcludedCategories { get; set; }
-        /// <summary>
-        /// The lower level defining the vertical band bottom
-        /// </summary>
-        public Level BaseLevel { get; set; }
 
         /// <summary>
-        /// The upper level defining the vertical band top
+        /// The IDs of selected levels for multi-level filling.
+        /// Levels will be automatically sorted by elevation during processing.
         /// </summary>
-        public Level TopLevel { get; set; }
+        public ObservableCollection<ElementId> SelectedLevelIds { get; set; } = new ObservableCollection<ElementId>();
 
         /// <summary>
-        /// Custom level name to use instead of the base Revit level name.
-        /// When set, this value will be used to fill parameters instead of BaseLevel.Name.
-        /// Leave empty to use the Revit level name.
+        /// The actual Level elements corresponding to SelectedLevelIds.
+        /// Populated during ViewModel initialization and restored from saved state.
         /// </summary>
-        public string CustomLevelName { get; set; }
+        public ObservableCollection<Level> SelectedLevels { get; set; } = new ObservableCollection<Level>();
 
         /// <summary>
-        /// Custom level name to use instead of the top Revit level name.
-        /// When set, this value will be used to fill parameters for excluded categories assigned to TopLevel.
-        /// Leave empty to use the Revit level name.
+        /// Custom level names mapped by level ElementId.
+        /// Key: Level ElementId, Value: Custom name (or empty to use Revit name).
+        /// Prepared for future custom naming UI.
         /// </summary>
-        public string CustomTopLevelName { get; set; }
+        public Dictionary<ElementId, string> CustomLevelNames { get; set; } = new Dictionary<ElementId, string>();
 
       
         /// <summary>
@@ -65,8 +63,7 @@ namespace COBIeManager.Shared.Models
         {
             if (!IsEnabled) return true; // Not enabled means no validation needed
 
-            return BaseLevel != null && TopLevel != null &&
-                   BaseLevel.Elevation < TopLevel.Elevation;
+            return SelectedLevels != null && SelectedLevels.Count >= 2;
         }
 
         /// <summary>
@@ -76,19 +73,14 @@ namespace COBIeManager.Shared.Models
         {
             if (!IsEnabled) return null;
 
-            if (BaseLevel == null)
+            if (SelectedLevels == null || SelectedLevels.Count == 0)
             {
-                return "Base level must be selected when Level mode is enabled";
+                return "At least 2 levels must be selected when Level mode is enabled";
             }
 
-            if (TopLevel == null)
+            if (SelectedLevels.Count == 1)
             {
-                return "Top level must be selected when Level mode is enabled";
-            }
-
-            if (BaseLevel.Elevation >= TopLevel.Elevation)
-            {
-                return "Top level must be above base level";
+                return "At least 2 levels must be selected for level range processing";
             }
 
             return null;

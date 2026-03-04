@@ -83,6 +83,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
         public ScopeBoxFillSummary ScopeBoxFillSummary { get; set; }
 
         /// <summary>
+        /// Zone fill summary (when FillMode includes zone fill)
+        /// </summary>
+        public ZoneFillSummary ZoneFillSummary { get; set; }
+
+        /// <summary>
         /// Time taken for the operation
         /// </summary>
         public TimeSpan ProcessingDuration { get; set; }
@@ -215,6 +220,33 @@ namespace COBIeManager.Features.ParameterFiller.Models
                     if (ScopeBoxFillSummary.ErrorMessages.Count > 5)
                     {
                         result += $"  ... (+{ScopeBoxFillSummary.ErrorMessages.Count - 5} more)\n";
+                    }
+                }
+            }
+
+            // Add zone fill summary if available
+            if (ZoneFillSummary != null)
+            {
+                result += "\n\nZone Fill Summary:\n" +
+                         $"------------------\n" +
+                         $"Zone: {ZoneFillSummary.ZoneName}\n" +
+                         $"Fill Value: {ZoneFillSummary.FillValue}\n" +
+                         $"Elements Found: {ZoneFillSummary.ElementsFound}\n" +
+                         $"Parameters Filled: {ZoneFillSummary.ParametersFilled}\n" +
+                         $"Parameters Skipped: {ZoneFillSummary.ParametersSkipped}\n" +
+                         $"Errors: {ZoneFillSummary.Errors}\n" +
+                         $"Processing Duration: {ZoneFillSummary.ProcessingDuration.TotalSeconds:F2} seconds";
+
+                if (ZoneFillSummary.Errors > 0 && ZoneFillSummary.ErrorMessages.Any())
+                {
+                    result += "\nError Messages:\n";
+                    foreach (var error in ZoneFillSummary.ErrorMessages.Take(5))
+                    {
+                        result += $"  - {error}\n";
+                    }
+                    if (ZoneFillSummary.ErrorMessages.Count > 5)
+                    {
+                        result += $"  ... (+{ZoneFillSummary.ErrorMessages.Count - 5} more)\n";
                     }
                 }
             }

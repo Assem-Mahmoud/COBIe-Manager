@@ -31,9 +31,18 @@
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
             <converters:FlagsToBooleanConverter x:Key="FlagsToBooleanConverter" />
             <converters:ModeToVisibilityConverter x:Key="ModeToVisibilityConverter" />
+            <converters:LevelOnlyVisibilityConverter x:Key="LevelOnlyVisibilityConverter" />
+            <converters:ZoneOnlyVisibilityConverter x:Key="ZoneOnlyVisibilityConverter" />
             <converters:ScopeBoxModeToVisibilityConverter x:Key="ScopeBoxModeToVisibilityConverter" />
             <converters:MillimetersToFeetConverter x:Key="MillimetersToFeetConverter" />
             <converters:ContainsElementIdConverter x:Key="ContainsElementIdConverter" />
+            <converters:ContainsElementIdToVisibilityConverter x:Key="ContainsElementIdToVisibilityConverter" />
+            <converters:LevelCustomNameIsEmptyConverter x:Key="LevelCustomNameIsEmptyConverter" />
+            <converters:LevelCustomNameBindingConverter x:Key="LevelCustomNameBindingConverter" />
+            <converters:ZoneCustomNameIsEmptyConverter x:Key="ZoneCustomNameIsEmptyConverter" />
+            <converters:ZoneCustomNameBindingConverter x:Key="ZoneCustomNameBindingConverter" />
+            <converters:ScopeBoxCustomNameIsEmptyConverter x:Key="ScopeBoxCustomNameIsEmptyConverter" />
+            <converters:ScopeBoxCustomNameBindingConverter x:Key="ScopeBoxCustomNameBindingConverter" />
 
             <!--  Modern ComboBox Style  -->
             <Style
@@ -521,121 +530,137 @@
                                                                         <!-- Level Mode Settings -->
                                                                         <StackPanel>
                                                                             <StackPanel.Visibility>
-                                                                                <MultiBinding Converter="{StaticResource ModeToVisibilityConverter}">
+                                                                                <MultiBinding Converter="{StaticResource LevelOnlyVisibilityConverter}">
                                                                                     <Binding Path="IsSelected" />
                                                                                     <Binding Path="Mode" />
                                                                                 </MultiBinding>
                                                                             </StackPanel.Visibility>
 
-                                                                            <!-- Base and Top Level Comboboxes -->
-                                                                            <Grid Margin="0,0,0,8">
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                    <ColumnDefinition Width="8" />
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                </Grid.ColumnDefinitions>
+                                                                            <!-- Level Selection -->
+                                                                            <StackPanel Margin="0,0,0,8">
+                                                                                <TextBlock
+                                                                                    Margin="0,0,0,4"
+                                                                                    FontSize="10"
+                                                                                    Foreground="{StaticResource SecondaryTextBrush}">
+                                                                                    <Run Text="Selected Levels" />
+                                                                                    <Run
+                                                                                        FontSize="9"
+                                                                                        Foreground="#757575"
+                                                                                        Text="(Select 2 or more levels)" />
+                                                                                </TextBlock>
+                                                                                <Border
+                                                                                    Background="White"
+                                                                                    BorderBrush="#E0E0E0"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="3"
+                                                                                    MaxHeight="200">
+                                                                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                                                        <ItemsControl ItemsSource="{Binding DataContext.Levels, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <Border
+                                                                                                        Background="White"
+                                                                                                        BorderBrush="#E0E0E0"
+                                                                                                        BorderThickness="0,0,0,1"
+                                                                                                        Padding="12,8">
+                                                                                                        <Grid>
+                                                                                                            <Grid.ColumnDefinitions>
+                                                                                                                <ColumnDefinition Width="Auto" />
+                                                                                                                <ColumnDefinition Width="8" />
+                                                                                                                <ColumnDefinition Width="*" />
+                                                                                                                <ColumnDefinition Width="12" />
+                                                                                                                <ColumnDefinition Width="120" />
+                                                                                                            </Grid.ColumnDefinitions>
+                                                                                                            <Grid.RowDefinitions>
+                                                                                                                <RowDefinition Height="Auto" />
+                                                                                                                <RowDefinition Height="Auto" />
+                                                                                                            </Grid.RowDefinitions>
 
-                                                                                <StackPanel Grid.Column="0">
-                                                                                    <TextBlock
-                                                                                        Margin="0,0,0,2"
-                                                                                        FontSize="10"
-                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                                                                        Text="Base Level" />
-                                                                                    <ComboBox
-                                                                                        DisplayMemberPath="Name"
-                                                                                        FontSize="11"
-                                                                                        ItemsSource="{Binding DataContext.Levels, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                        SelectedItem="{Binding DataContext.Config.LevelMode.BaseLevel, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
-                                                                                        Style="{StaticResource ModernComboBox}" />
-                                                                                </StackPanel>
+                                                                                                            <!-- Checkbox -->
+                                                                                                            <CheckBox
+                                                                                                                Grid.Column="0"
+                                                                                                                Grid.Row="0"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                Tag="{Binding}">
+                                                                                                                <CheckBox.IsChecked>
+                                                                                                                    <MultiBinding Converter="{StaticResource ContainsElementIdConverter}" Mode="OneWay">
+                                                                                                                        <Binding Path="DataContext.Config.LevelMode.SelectedLevelIds" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                        <Binding Path="Id" />
+                                                                                                                    </MultiBinding>
+                                                                                                                </CheckBox.IsChecked>
+                                                                                                                <CheckBox.Style>
+                                                                                                                    <Style TargetType="CheckBox">
+                                                                                                                        <EventSetter Event="Checked" Handler="LevelCheckBox_Checked" />
+                                                                                                                        <EventSetter Event="Unchecked" Handler="LevelCheckBox_Unchecked" />
+                                                                                                                    </Style>
+                                                                                                                </CheckBox.Style>
+                                                                                                            </CheckBox>
 
-                                                                                <StackPanel Grid.Column="2">
-                                                                                    <TextBlock
-                                                                                        Margin="0,0,0,2"
-                                                                                        FontSize="10"
-                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                                                                        Text="Top Level" />
-                                                                                    <ComboBox
-                                                                                        DisplayMemberPath="Name"
-                                                                                        FontSize="11"
-                                                                                        ItemsSource="{Binding DataContext.Levels, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                                        SelectedItem="{Binding DataContext.Config.LevelMode.TopLevel, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
-                                                                                        Style="{StaticResource ModernComboBox}" />
-                                                                                </StackPanel>
-                                                                            </Grid>
+                                                                                                            <!-- Level Name -->
+                                                                                                            <TextBlock
+                                                                                                                Grid.Column="2"
+                                                                                                                Grid.Row="0"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                FontSize="11"
+                                                                                                                Text="{Binding Name}" />
 
-                                                                            <!-- Custom Level Names -->
-                                                                            <Grid Margin="0,0,0,8">
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                    <ColumnDefinition Width="8" />
-                                                                                    <ColumnDefinition Width="*" />
-                                                                                </Grid.ColumnDefinitions>
-
-                                                                                <!-- Base Level Custom Name -->
-                                                                                <StackPanel Grid.Column="0">
-                                                                                    <TextBlock
-                                                                                        Margin="0,0,0,2"
-                                                                                        FontSize="10"
-                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                                                                        Text="Base Custom Name (optional)" />
-                                                                                    <Border
-                                                                                        Padding="8,6"
-                                                                                        Background="White"
-                                                                                        BorderBrush="#E0E0E0"
-                                                                                        BorderThickness="1"
-                                                                                        CornerRadius="3">
-                                                                                        <Grid>
-                                                                                            <TextBlock
-                                                                                                Margin="8,0"
-                                                                                                VerticalAlignment="Center"
-                                                                                                FontSize="11"
-                                                                                                Foreground="#9E9E9E"
-                                                                                                IsHitTestVisible="False"
-                                                                                                Text="Use Revit name"
-                                                                                                Visibility="{Binding DataContext.Config.LevelMode.CustomLevelName, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                                                                            <TextBox
-                                                                                                Padding="8,4"
-                                                                                                VerticalAlignment="Center"
-                                                                                                FontSize="11"
-                                                                                                Text="{Binding DataContext.Config.LevelMode.CustomLevelName, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                                                ToolTip="Enter a custom name for the base level. Leave empty to use the Revit level name." />
-                                                                                        </Grid>
-                                                                                    </Border>
-                                                                                </StackPanel>
-
-                                                                                <!-- Top Level Custom Name -->
-                                                                                <StackPanel Grid.Column="2">
-                                                                                    <TextBlock
-                                                                                        Margin="0,0,0,2"
-                                                                                        FontSize="10"
-                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                                                                        Text="Top Custom Name (optional)" />
-                                                                                    <Border
-                                                                                        Padding="8,6"
-                                                                                        Background="White"
-                                                                                        BorderBrush="#E0E0E0"
-                                                                                        BorderThickness="1"
-                                                                                        CornerRadius="3">
-                                                                                        <Grid>
-                                                                                            <TextBlock
-                                                                                                Margin="8,0"
-                                                                                                VerticalAlignment="Center"
-                                                                                                FontSize="11"
-                                                                                                Foreground="#9E9E9E"
-                                                                                                IsHitTestVisible="False"
-                                                                                                Text="Use Revit name"
-                                                                                                Visibility="{Binding DataContext.Config.LevelMode.CustomTopLevelName, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                                                                            <TextBox
-                                                                                                Padding="8,4"
-                                                                                                VerticalAlignment="Center"
-                                                                                                FontSize="11"
-                                                                                                Text="{Binding DataContext.Config.LevelMode.CustomTopLevelName, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                                                                ToolTip="Enter a custom name for the top level. Leave empty to use the Revit level name." />
-                                                                                        </Grid>
-                                                                                    </Border>
-                                                                                </StackPanel>
-                                                                            </Grid>                                                           
+                                                                                                            <!-- Custom Name (always visible for all levels) -->
+                                                                                                            <Border
+                                                                                                                Grid.Column="4"
+                                                                                                                Grid.Row="0"
+                                                                                                                Background="White"
+                                                                                                                BorderBrush="#E0E0E0"
+                                                                                                                BorderThickness="1"
+                                                                                                                CornerRadius="3"
+                                                                                                                Padding="8,4">
+                                                                                                                <Grid>
+                                                                                                                    <TextBlock
+                                                                                                                        Margin="8,0"
+                                                                                                                        VerticalAlignment="Center"
+                                                                                                                        FontSize="10"
+                                                                                                                        Foreground="#9E9E9E"
+                                                                                                                        IsHitTestVisible="False"
+                                                                                                                        Text="Custom name...">
+                                                                                                                        <TextBlock.Visibility>
+                                                                                                                            <MultiBinding Converter="{StaticResource LevelCustomNameIsEmptyConverter}" Mode="OneWay">
+                                                                                                                                <Binding Path="DataContext.Config.LevelMode.CustomLevelNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                                <Binding Path="Id" />
+                                                                                                                            </MultiBinding>
+                                                                                                                        </TextBlock.Visibility>
+                                                                                                                    </TextBlock>
+                                                                                                                    <TextBox
+                                                                                                                        Padding="0"
+                                                                                                                        VerticalAlignment="Center"
+                                                                                                                        FontSize="10"
+                                                                                                                        BorderThickness="0"
+                                                                                                                        LostFocus="CustomLevelNameTextBox_LostFocus"
+                                                                                                                        Tag="{Binding}">
+                                                                                                                        <TextBox.Text>
+                                                                                                                            <MultiBinding Converter="{StaticResource LevelCustomNameBindingConverter}" Mode="OneWay">
+                                                                                                                                <Binding Path="DataContext.Config.LevelMode.CustomLevelNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                                <Binding Path="Id" />
+                                                                                                                            </MultiBinding>
+                                                                                                                        </TextBox.Text>
+                                                                                                                    </TextBox>
+                                                                                                                </Grid>
+                                                                                                            </Border>
+                                                                                                        </Grid>
+                                                                                                    </Border>
+                                                                                                </DataTemplate>
+                                                                                            </ItemsControl.ItemTemplate>
+                                                                                        </ItemsControl>
+                                                                                    </ScrollViewer>
+                                                                                </Border>
+                                                                                <TextBlock
+                                                                                    Margin="0,4,0,0"
+                                                                                    FontSize="9"
+                                                                                    Foreground="#757575"
+                                                                                    TextWrapping="Wrap">
+                                                                                    <Run Text="Elements will be assigned to the lower level of each range." />
+                                                                                    <LineBreak />
+                                                                                    <Run Text="Example: L1-L2 range assigns to L1, L2-L3 range assigns to L2" />
+                                                                                </TextBlock>
+                                                                            </StackPanel>
                                                                         </StackPanel>
 
                                                                         <!-- Scope Box Mode Settings -->
@@ -679,26 +704,89 @@
                                                                                         <ItemsControl ItemsSource="{Binding DataContext.ScopeBoxes, RelativeSource={RelativeSource AncestorType=Window}}">
                                                                                             <ItemsControl.ItemTemplate>
                                                                                                 <DataTemplate>
-                                                                                                    <CheckBox
-                                                                                                        Content="{Binding Name}"
-                                                                                                        FontSize="11"
-                                                                                                        Padding="8,4"
-                                                                                                        Tag="{Binding}">
-                                                                                                        <CheckBox.Style>
-                                                                                                            <Style TargetType="CheckBox">
-                                                                                                                <Setter Property="IsChecked">
-                                                                                                                    <Setter.Value>
-                                                                                                                        <MultiBinding Converter="{StaticResource ContainsElementIdConverter}" Mode="OneWay">
-                                                                                                                            <Binding Path="DataContext.Config.ScopeBoxMode.SelectedScopeBoxIds" RelativeSource="{RelativeSource AncestorType=Window}" Mode="OneWay" />
-                                                                                                                            <Binding Path="Tag.Id" RelativeSource="{RelativeSource Self}" Mode="OneWay" />
-                                                                                                                        </MultiBinding>
-                                                                                                                    </Setter.Value>
-                                                                                                                </Setter>
-                                                                                                                <EventSetter Event="Checked" Handler="ScopeBoxCheckBox_Checked" />
-                                                                                                                <EventSetter Event="Unchecked" Handler="ScopeBoxCheckBox_Unchecked" />
-                                                                                                            </Style>
-                                                                                                        </CheckBox.Style>
-                                                                                                    </CheckBox>
+                                                                                                    <Border
+                                                                                                        Background="White"
+                                                                                                        BorderBrush="#E0E0E0"
+                                                                                                        BorderThickness="0,0,0,1"
+                                                                                                        Padding="12,6">
+                                                                                                        <Grid>
+                                                                                                            <Grid.ColumnDefinitions>
+                                                                                                                <ColumnDefinition Width="Auto" />
+                                                                                                                <ColumnDefinition Width="8" />
+                                                                                                                <ColumnDefinition Width="*" />
+                                                                                                                <ColumnDefinition Width="12" />
+                                                                                                                <ColumnDefinition Width="120" />
+                                                                                                            </Grid.ColumnDefinitions>
+
+                                                                                                            <!-- Checkbox -->
+                                                                                                            <CheckBox
+                                                                                                                Grid.Column="0"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                Tag="{Binding}">
+                                                                                                                <CheckBox.Style>
+                                                                                                                    <Style TargetType="CheckBox">
+                                                                                                                        <Setter Property="IsChecked">
+                                                                                                                            <Setter.Value>
+                                                                                                                                <MultiBinding Converter="{StaticResource ContainsElementIdConverter}" Mode="OneWay">
+                                                                                                                                    <Binding Path="DataContext.Config.ScopeBoxMode.SelectedScopeBoxIds" RelativeSource="{RelativeSource AncestorType=Window}" Mode="OneWay" />
+                                                                                                                                    <Binding Path="Tag.Id" RelativeSource="{RelativeSource Self}" Mode="OneWay" />
+                                                                                                                                </MultiBinding>
+                                                                                                                            </Setter.Value>
+                                                                                                                        </Setter>
+                                                                                                                        <EventSetter Event="Checked" Handler="ScopeBoxCheckBox_Checked" />
+                                                                                                                        <EventSetter Event="Unchecked" Handler="ScopeBoxCheckBox_Unchecked" />
+                                                                                                                    </Style>
+                                                                                                                </CheckBox.Style>
+                                                                                                            </CheckBox>
+
+                                                                                                            <!-- Scope Box Name -->
+                                                                                                            <TextBlock
+                                                                                                                Grid.Column="2"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                FontSize="11"
+                                                                                                                Text="{Binding Name}" />
+
+                                                                                                            <!-- Custom Name (always visible for all scope boxes) -->
+                                                                                                            <Border
+                                                                                                                Grid.Column="4"
+                                                                                                                Background="White"
+                                                                                                                BorderBrush="#E0E0E0"
+                                                                                                                BorderThickness="1"
+                                                                                                                CornerRadius="3"
+                                                                                                                Padding="8,4">
+                                                                                                                <Grid>
+                                                                                                                    <TextBlock
+                                                                                                                        Margin="8,0"
+                                                                                                                        VerticalAlignment="Center"
+                                                                                                                        FontSize="10"
+                                                                                                                        Foreground="#9E9E9E"
+                                                                                                                        IsHitTestVisible="False"
+                                                                                                                        Text="Custom name...">
+                                                                                                                        <TextBlock.Visibility>
+                                                                                                                            <MultiBinding Converter="{StaticResource ScopeBoxCustomNameIsEmptyConverter}" Mode="OneWay">
+                                                                                                                                <Binding Path="DataContext.Config.ScopeBoxMode.CustomScopeBoxNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                                <Binding Path="Id" />
+                                                                                                                            </MultiBinding>
+                                                                                                                        </TextBlock.Visibility>
+                                                                                                                    </TextBlock>
+                                                                                                                    <TextBox
+                                                                                                                        Padding="0"
+                                                                                                                        VerticalAlignment="Center"
+                                                                                                                        FontSize="10"
+                                                                                                                        BorderThickness="0"
+                                                                                                                        LostFocus="CustomScopeBoxNameTextBox_LostFocus"
+                                                                                                                        Tag="{Binding}">
+                                                                                                                        <TextBox.Text>
+                                                                                                                            <MultiBinding Converter="{StaticResource ScopeBoxCustomNameBindingConverter}" Mode="OneWay">
+                                                                                                                                <Binding Path="DataContext.Config.ScopeBoxMode.CustomScopeBoxNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                                <Binding Path="Id" />
+                                                                                                                            </MultiBinding>
+                                                                                                                        </TextBox.Text>
+                                                                                                                    </TextBox>
+                                                                                                                </Grid>
+                                                                                                            </Border>
+                                                                                                        </Grid>
+                                                                                                    </Border>
                                                                                                 </DataTemplate>
                                                                                             </ItemsControl.ItemTemplate>
                                                                                         </ItemsControl>
@@ -726,6 +814,138 @@
                                                                                         Text="{Binding DataContext.Config.ScopeBoxMode.Tolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
                                                                                         ToolTip="Extends the scope box bounds in all directions. Elements must be completely inside the extended range." />
                                                                                 </Border>
+                                                                            </StackPanel>
+                                                                        </StackPanel>
+
+                                                                        <!-- Zone Mode Settings -->
+                                                                        <StackPanel>
+                                                                            <StackPanel.Visibility>
+                                                                                <MultiBinding Converter="{StaticResource ZoneOnlyVisibilityConverter}">
+                                                                                    <Binding Path="IsSelected" />
+                                                                                    <Binding Path="Mode" />
+                                                                                </MultiBinding>
+                                                                            </StackPanel.Visibility>
+
+                                                                            <!-- Zone Multi-Selection -->
+                                                                            <StackPanel Margin="0,0,0,8">
+                                                                                <Grid Margin="0,0,0,2">
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="*" />
+                                                                                        <ColumnDefinition Width="Auto" />
+                                                                                    </Grid.ColumnDefinitions>
+
+                                                                                    <TextBlock
+                                                                                        Grid.Column="0"
+                                                                                        FontSize="10"
+                                                                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                        Text="Select Scope Boxes" />
+
+                                                                                    <TextBlock
+                                                                                        Grid.Column="1"
+                                                                                        FontSize="10"
+                                                                                        Foreground="#757575">
+                                                                                        <Run Text="Selected:" />
+                                                                                        <Run FontWeight="SemiBold" Text="{Binding DataContext.Config.ZoneMode.SelectedZoneIds.Count, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}" />
+                                                                                    </TextBlock>
+                                                                                </Grid>
+
+                                                                                <Border
+                                                                                    Background="White"
+                                                                                    BorderBrush="#E0E0E0"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="3">
+                                                                                    <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                                                                        <ItemsControl ItemsSource="{Binding DataContext.Zones, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                                                            <ItemsControl.ItemTemplate>
+                                                                                                <DataTemplate>
+                                                                                                    <Border
+                                                                                                        Background="White"
+                                                                                                        BorderBrush="#E0E0E0"
+                                                                                                        BorderThickness="0,0,0,1"
+                                                                                                        Padding="12,6">
+                                                                                                        <Grid>
+                                                                                                            <Grid.ColumnDefinitions>
+                                                                                                                <ColumnDefinition Width="Auto" />
+                                                                                                                <ColumnDefinition Width="8" />
+                                                                                                                <ColumnDefinition Width="*" />
+                                                                                                                <ColumnDefinition Width="12" />
+                                                                                                                <ColumnDefinition Width="120" />
+                                                                                                            </Grid.ColumnDefinitions>
+
+                                                                                                            <!-- Checkbox -->
+                                                                                                            <CheckBox
+                                                                                                                Grid.Column="0"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                Tag="{Binding}">
+                                                                                                                <CheckBox.Style>
+                                                                                                                    <Style TargetType="CheckBox">
+                                                                                                                        <Setter Property="IsChecked">
+                                                                                                                            <Setter.Value>
+                                                                                                                                <MultiBinding Converter="{StaticResource ContainsElementIdConverter}" Mode="OneWay">
+                                                                                                                                    <Binding Path="DataContext.Config.ZoneMode.SelectedZoneIds" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                                                                    <Binding Path="Id" RelativeSource="{RelativeSource Self}" />
+                                                                                                                                </MultiBinding>
+                                                                                                                            </Setter.Value>
+                                                                                                                        </Setter>
+                                                                                                                        <EventSetter Event="Checked" Handler="ZoneCheckBox_Checked" />
+                                                                                                                        <EventSetter Event="Unchecked" Handler="ZoneCheckBox_Unchecked" />
+                                                                                                                    </Style>
+                                                                                                                </CheckBox.Style>
+                                                                                                            </CheckBox>
+
+                                                                                                            <!-- Zone Name -->
+                                                                                                            <TextBlock
+                                                                                                                Grid.Column="2"
+                                                                                                                VerticalAlignment="Center"
+                                                                                                                FontSize="11"
+                                                                                                                Text="{Binding Name}" />
+
+                                                                                                            <!-- Custom Name (always visible for all zones) -->
+                                                                                                            <Border
+                                                                                                                Grid.Column="4"
+                                                                            Background="White"
+                                                                            BorderBrush="#E0E0E0"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="3"
+                                                                            Padding="8,4">
+                                                                            <Grid>
+                                                                                <TextBlock
+                                                                                    Margin="8,0"
+                                                                                    VerticalAlignment="Center"
+                                                                                    FontSize="10"
+                                                                                    Foreground="#9E9E9E"
+                                                                                    IsHitTestVisible="False"
+                                                                                    Text="Custom name...">
+                                                                                    <TextBlock.Visibility>
+                                                                                        <MultiBinding Converter="{StaticResource ZoneCustomNameIsEmptyConverter}" Mode="OneWay">
+                                                                                            <Binding Path="DataContext.Config.ZoneMode.CustomZoneNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                            <Binding Path="Id" />
+                                                                                        </MultiBinding>
+                                                                                    </TextBlock.Visibility>
+                                                                                </TextBlock>
+                                                                                <TextBox
+                                                                                    Padding="0"
+                                                                                    VerticalAlignment="Center"
+                                                                                    FontSize="10"
+                                                                                    BorderThickness="0"
+                                                                                    LostFocus="CustomZoneNameTextBox_LostFocus"
+                                                                                    Tag="{Binding}">
+                                                                                    <TextBox.Text>
+                                                                                        <MultiBinding Converter="{StaticResource ZoneCustomNameBindingConverter}" Mode="OneWay">
+                                                                                            <Binding Path="DataContext.Config.ZoneMode.CustomZoneNames" RelativeSource="{RelativeSource AncestorType=Window}" />
+                                                                                            <Binding Path="Id" />
+                                                                                        </MultiBinding>
+                                                                                    </TextBox.Text>
+                                                                                </TextBox>
+                                                                            </Grid>
+                                                                        </Border>
+                                                                                                    </Grid>
+                                                                                                </Border>
+                                                                                            </DataTemplate>
+                                                                                        </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                </Border>
                                                                             </StackPanel>
                                                                         </StackPanel>
                                                                     </StackPanel>

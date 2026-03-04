@@ -43,6 +43,11 @@ namespace COBIeManager.Features.ParameterFiller.Models
         /// </summary>
         public ScopeBoxModeConfig ScopeBoxMode { get; set; }
 
+        /// <summary>
+        /// Configuration specific to Zone-based filling
+        /// </summary>
+        public ZoneModeConfig ZoneMode { get; set; }
+
         // ========== LEGACY PROPERTIES FOR BACKWARD COMPATIBILITY ==========
         // These properties delegate to the new structure to maintain compatibility
         // with existing code that hasn't been migrated yet.
@@ -100,28 +105,52 @@ namespace COBIeManager.Features.ParameterFiller.Models
         }
 
         /// <summary>
-        /// Legacy property - maps to BaseLevel/TopLevel based on enabled modes
+        /// Legacy property - returns the lowest selected level for backward compatibility
         /// </summary>
-        [Obsolete("Use LevelMode.BaseLevel instead")]
+        [Obsolete("Use LevelMode.SelectedLevels instead - multi-level selection is now supported")]
         public Level BaseLevel
         {
-            get => LevelMode?.BaseLevel;
+            get
+            {
+                if (LevelMode?.SelectedLevels == null || LevelMode.SelectedLevels.Count == 0)
+                    return null;
+                // Return the lowest level (sorted by elevation)
+                return LevelMode.SelectedLevels.OrderBy(l => l.Elevation).FirstOrDefault();
+            }
             set
             {
-                if (LevelMode != null) LevelMode.BaseLevel = value;
+                // For backward compatibility, replace selected levels with just this one level
+                if (LevelMode != null && value != null)
+                {
+                    LevelMode.SelectedLevelIds.Clear();
+                    LevelMode.SelectedLevels.Clear();
+                    LevelMode.SelectedLevelIds.Add(value.Id);
+                    LevelMode.SelectedLevels.Add(value);
+                }
             }
         }
 
         /// <summary>
-        /// Legacy property - maps to BaseLevel/TopLevel based on enabled modes
+        /// Legacy property - returns the highest selected level for backward compatibility
         /// </summary>
-        [Obsolete("Use LevelMode.TopLevel instead")]
+        [Obsolete("Use LevelMode.SelectedLevels instead - multi-level selection is now supported")]
         public Level TopLevel
         {
-            get => LevelMode?.TopLevel;
+            get
+            {
+                if (LevelMode?.SelectedLevels == null || LevelMode.SelectedLevels.Count == 0)
+                    return null;
+                // Return the highest level (sorted by elevation)
+                return LevelMode.SelectedLevels.OrderByDescending(l => l.Elevation).FirstOrDefault();
+            }
             set
             {
-                if (LevelMode != null) LevelMode.TopLevel = value;
+                // For backward compatibility, add this level to selected levels
+                if (LevelMode != null && value != null && !LevelMode.SelectedLevelIds.Contains(value.Id))
+                {
+                    LevelMode.SelectedLevelIds.Add(value.Id);
+                    LevelMode.SelectedLevels.Add(value);
+                }
             }
         }
 
@@ -139,6 +168,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
                 if (RoomNumberMode?.IsEnabled == true) mode |= FillMode.RoomNumber;
                 if (GroupsMode?.IsEnabled == true) mode |= FillMode.Groups;
                 if (ScopeBoxMode?.IsEnabled == true) mode |= FillMode.ScopeBox;
+                if (ZoneMode?.IsEnabled == true) mode |= FillMode.Zone;
                 return mode;
             }
             set
@@ -149,6 +179,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
                 if (RoomNumberMode != null) RoomNumberMode.IsEnabled = (value & FillMode.RoomNumber) != 0;
                 if (GroupsMode != null) GroupsMode.IsEnabled = (value & FillMode.Groups) != 0;
                 if (ScopeBoxMode != null) ScopeBoxMode.IsEnabled = (value & FillMode.ScopeBox) != 0;
+                if (ZoneMode != null) ZoneMode.IsEnabled = (value & FillMode.Zone) != 0;
             }
         }
 
@@ -172,7 +203,8 @@ namespace COBIeManager.Features.ParameterFiller.Models
                 RoomNameMode = new RoomNameModeConfig { IsEnabled = false },
                 RoomNumberMode = new RoomNumberModeConfig { IsEnabled = false },
                 GroupsMode = new GroupsModeConfig { IsEnabled = false },
-                ScopeBoxMode = new ScopeBoxModeConfig { IsEnabled = false }
+                ScopeBoxMode = new ScopeBoxModeConfig { IsEnabled = false },
+                ZoneMode = new ZoneModeConfig { IsEnabled = false }
             };
         }
 
@@ -188,6 +220,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
             if (RoomNumberMode?.IsEnabled == true) modes.Add(RoomNumberMode);
             if (GroupsMode?.IsEnabled == true) modes.Add(GroupsMode);
             if (ScopeBoxMode?.IsEnabled == true) modes.Add(ScopeBoxMode);
+            if (ZoneMode?.IsEnabled == true) modes.Add(ZoneMode);
 
             return modes;
         }
@@ -204,6 +237,7 @@ namespace COBIeManager.Features.ParameterFiller.Models
                 var t when t == typeof(RoomNumberModeConfig) => RoomNumberMode as T,
                 var t when t == typeof(GroupsModeConfig) => GroupsMode as T,
                 var t when t == typeof(ScopeBoxModeConfig) => ScopeBoxMode as T,
+                var t when t == typeof(ZoneModeConfig) => ZoneMode as T,
                 _ => null
             };
         }
@@ -245,7 +279,8 @@ namespace COBIeManager.Features.ParameterFiller.Models
                                           GetRoomNameModeParameters().Count > 0 ||
                                           GetRoomNumberModeParameters().Count > 0 ||
                                           GetGroupModeParameters().Count > 0 ||
-                                          GetScopeBoxModeParameters().Count > 0;
+                                          GetScopeBoxModeParameters().Count > 0 ||
+                                          GetZoneModeParameters().Count > 0;
 
             return hasAnyMappedParameters;
         }
@@ -289,7 +324,8 @@ namespace COBIeManager.Features.ParameterFiller.Models
                                           GetRoomNameModeParameters().Count > 0 ||
                                           GetRoomNumberModeParameters().Count > 0 ||
                                           GetGroupModeParameters().Count > 0 ||
-                                          GetScopeBoxModeParameters().Count > 0;
+                                          GetScopeBoxModeParameters().Count > 0 ||
+                                          GetZoneModeParameters().Count > 0;
 
             if (!hasAnyMappedParameters)
             {
@@ -308,7 +344,8 @@ namespace COBIeManager.Features.ParameterFiller.Models
                    RoomNameMode?.IsEnabled == true ||
                    RoomNumberMode?.IsEnabled == true ||
                    GroupsMode?.IsEnabled == true ||
-                   ScopeBoxMode?.IsEnabled == true;
+                   ScopeBoxMode?.IsEnabled == true ||
+                   ZoneMode?.IsEnabled == true;
         }
 
         // ========== LEGACY METHODS FOR BACKWARD COMPATIBILITY ==========
@@ -407,6 +444,14 @@ namespace COBIeManager.Features.ParameterFiller.Models
         public IList<string> GetScopeBoxModeParameters()
         {
             return General?.GetParameterNamesByMode(FillMode.ScopeBox) ?? new List<string>();
+        }
+
+        /// <summary>
+        /// Gets selected parameters applicable for zone-based filling
+        /// </summary>
+        public IList<string> GetZoneModeParameters()
+        {
+            return General?.GetParameterNamesByMode(FillMode.Zone) ?? new List<string>();
         }
 
         /// <summary>

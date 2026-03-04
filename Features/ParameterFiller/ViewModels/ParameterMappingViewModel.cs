@@ -129,6 +129,19 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
+        /// Sets the mode for all unmapped parameters to Zone mode
+        /// </summary>
+        [RelayCommand]
+        private void SetAllUnmappedToZone()
+        {
+            foreach (var param in SelectedParameters.Where(p => !p.IsMapped))
+            {
+                param.ApplicableMode = FillMode.Zone;
+                param.IsMapped = true;
+            }
+        }
+
+        /// <summary>
         /// Validates that all selected parameters have been mapped
         /// </summary>
         public bool IsValid => !HasUnmappedParameters;

@@ -219,6 +219,9 @@ namespace COBIeManager
                 logger.Info("Registering IScopeBoxAssignmentService singleton...");
                 services.RegisterSingleton<IScopeBoxAssignmentService>(new ScopeBoxAssignmentService(logger));
 
+                logger.Info("Registering IZoneAssignmentService singleton...");
+                services.RegisterSingleton<IZoneAssignmentService>(new ZoneAssignmentService(logger));
+
                 logger.Info("Registering IParameterFillService singleton...");
                 services.AddSingleton<IParameterFillService>(sp =>
                 {
@@ -227,6 +230,7 @@ namespace COBIeManager
                     var boxIdService = sp.GetService<IBoxIdFillService>();
                     var roomFillService = sp.GetService<IRoomFillService>();
                     var scopeBoxService = sp.GetService<IScopeBoxAssignmentService>();
+                    var zoneService = sp.GetService<IZoneAssignmentService>();
                     if (levelService == null)
                         throw new InvalidOperationException("Failed to resolve ILevelAssignmentService during IParameterFillService registration");
                     if (roomService == null)
@@ -237,7 +241,9 @@ namespace COBIeManager
                         throw new InvalidOperationException("Failed to resolve IRoomFillService during IParameterFillService registration");
                     if (scopeBoxService == null)
                         throw new InvalidOperationException("Failed to resolve IScopeBoxAssignmentService during IParameterFillService registration");
-                    return new ParameterFillService(logger, levelService, roomService, boxIdService, roomFillService, scopeBoxService);
+                    if (zoneService == null)
+                        throw new InvalidOperationException("Failed to resolve IZoneAssignmentService during IParameterFillService registration");
+                    return new ParameterFillService(logger, levelService, roomService, boxIdService, roomFillService, scopeBoxService, zoneService);
                 });
 
                 logger.Info("Registering IProcessingLogger singleton...");

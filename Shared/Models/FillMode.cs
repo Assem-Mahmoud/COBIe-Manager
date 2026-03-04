@@ -36,6 +36,11 @@ namespace COBIeManager.Shared.Models
         /// <summary>
         /// Fill scope box name parameters
         /// </summary>
-        ScopeBox = 16     // 1 << 4
+        ScopeBox = 16,     // 1 << 4
+
+        /// <summary>
+        /// Fill zone name parameters (Zone mode - same logic as Building/ScopeBox)
+        /// </summary>
+        Zone = 32          // 1 << 5
     }
 }

@@ -11,65 +11,66 @@ using System.Diagnostics;
 namespace COBIeManager.Shared.Services
 {
     /// <summary>
-    /// Service for scope box-based parameter filling.
-    /// Finds elements within scope box bounds and assigns parameters.
-    /// Supports multiple scope boxes - each element gets the name of the scope box it's in.
+    /// Service for zone-based parameter filling.
+    /// Finds elements within zone bounds (scope boxes) and assigns parameters.
+    /// Supports multiple zones - each element gets the name of the zone it's in.
+    /// Zones are represented by scope boxes in Revit.
     /// </summary>
-    public class ScopeBoxAssignmentService : IScopeBoxAssignmentService
+    public class ZoneAssignmentService : IZoneAssignmentService
     {
         private readonly ILogger _logger;
 
-        public ScopeBoxAssignmentService(ILogger logger)
+        public ZoneAssignmentService(ILogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
-        /// Gets all available scope boxes in the document
+        /// Gets all available zones (scope boxes) in the document
         /// </summary>
-        public IList<Element> GetScopeBoxes(Document document)
+        public IList<Element> GetZones(Document document)
         {
             if (document == null)
                 throw new ArgumentNullException(nameof(document));
 
             try
             {
-                // Scope boxes are of type Element with Category OST_VolumeOfInterest
-                var scopeBoxCollector = new FilteredElementCollector(document)
+                // Zones are scope boxes - category: OST_VolumeOfInterest
+                var zoneCollector = new FilteredElementCollector(document)
                     .OfCategory(BuiltInCategory.OST_VolumeOfInterest)
                     .WhereElementIsNotElementType();
 
-                var scopeBoxes = scopeBoxCollector
-                    .OrderBy(sb => sb.Name)
+                var zones = zoneCollector
+                    .OrderBy(z => z.Name)
                     .ToList();
 
-                _logger.Info($"Found {scopeBoxes.Count} scope boxes in document");
-                return scopeBoxes;
+                _logger.Info($"Found {zones.Count} zones in document");
+                return zones;
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error getting scope boxes: {ex.Message}");
+                _logger.Error($"Error getting zones: {ex.Message}");
                 return new List<Element>();
             }
         }
 
         /// <summary>
-        /// Gets the bounding box of a scope box
+        /// Gets the bounding box of a zone (scope box)
         /// </summary>
-        public BoundingBoxXYZ GetScopeBoxBoundingBox(Element scopeBox)
+        public BoundingBoxXYZ GetZoneBoundingBox(Element zone)
         {
-            if (scopeBox == null)
-                throw new ArgumentNullException(nameof(scopeBox));
+            if (zone == null)
+                throw new ArgumentNullException(nameof(zone));
 
             try
             {
-                // Scope boxes have a bounding box that can be retrieved directly
+                // Zones (scope boxes) have a bounding box that can be retrieved directly
                 // The bounding box is in model coordinates
-                var bbox = scopeBox.get_BoundingBox(null);
+                var bbox = zone.get_BoundingBox(null);
 
                 if (bbox == null)
                 {
-                    _logger.Warn($"Scope box {scopeBox.Name} has no bounding box");
+                    _logger.Warn($"Zone {zone.Name} has no bounding box");
                     return null;
                 }
 
@@ -77,17 +78,17 @@ namespace COBIeManager.Shared.Services
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error getting bounding box for scope box {scopeBox.Name}: {ex.Message}");
+                _logger.Error($"Error getting bounding box for zone {zone.Name}: {ex.Message}");
                 return null;
             }
         }
 
         /// <summary>
-        /// Checks if an element is contained within a scope box's bounding box
+        /// Checks if an element is contained within a zone's bounding box
         /// </summary>
-        public bool IsElementInScopeBox(Element element, BoundingBoxXYZ scopeBoxBoundingBox, double tolerance = 0.0)
+        public bool IsElementInZone(Element element, BoundingBoxXYZ zoneBoundingBox)
         {
-            if (element == null || scopeBoxBoundingBox == null)
+            if (element == null || zoneBoundingBox == null)
                 return false;
 
             try
@@ -102,34 +103,27 @@ namespace COBIeManager.Shared.Services
                     return false;
                 }
 
-                // Apply tolerance to the scope box bounds
-                double minWithTolerance = scopeBoxBoundingBox.Min.X - tolerance;
-                double maxWithTolerance = scopeBoxBoundingBox.Max.X + tolerance;
-
-                // Check if element is completely inside the extended scope box bounds
+                // No tolerance - use exact zone bounds
+                // Check if element is completely inside the zone bounds
                 // We check all three dimensions (X, Y, Z)
 
                 // X dimension
-                if (elementBbox.Min.X < minWithTolerance || elementBbox.Max.X > maxWithTolerance)
+                if (elementBbox.Min.X < zoneBoundingBox.Min.X || elementBbox.Max.X > zoneBoundingBox.Max.X)
                     return false;
 
                 // Y dimension
-                minWithTolerance = scopeBoxBoundingBox.Min.Y - tolerance;
-                maxWithTolerance = scopeBoxBoundingBox.Max.Y + tolerance;
-                if (elementBbox.Min.Y < minWithTolerance || elementBbox.Max.Y > maxWithTolerance)
+                if (elementBbox.Min.Y < zoneBoundingBox.Min.Y || elementBbox.Max.Y > zoneBoundingBox.Max.Y)
                     return false;
 
                 // Z dimension
-                minWithTolerance = scopeBoxBoundingBox.Min.Z - tolerance;
-                maxWithTolerance = scopeBoxBoundingBox.Max.Z + tolerance;
-                if (elementBbox.Min.Z < minWithTolerance || elementBbox.Max.Z > maxWithTolerance)
+                if (elementBbox.Min.Z < zoneBoundingBox.Min.Z || elementBbox.Max.Z > zoneBoundingBox.Max.Z)
                     return false;
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error checking if element {element.Id} is in scope box: {ex.Message}");
+                _logger.Error($"Error checking if element {element.Id} is in zone: {ex.Message}");
                 return false;
             }
         }
@@ -148,36 +142,33 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
-        /// Finds all elements within the selected scope box bounds.
-        /// Returns a dictionary mapping elements to their assigned scope box name.
-        /// Scope boxes are sorted by area (largest to smallest) to handle nesting properly.
-        /// Smaller (nested) scope boxes will override larger ones for elements they contain.
+        /// Finds all elements within the selected zone bounds.
+        /// Returns a dictionary mapping elements to their assigned zone name.
+        /// Zones (scope boxes) are sorted by area (largest to smallest) to handle nesting properly.
+        /// Smaller (nested) zones will override larger ones for elements they contain.
         /// </summary>
-        public IDictionary<Element, string> FindElementsInScopeBoxes(Document document, FillConfiguration config)
+        public IDictionary<Element, string> FindElementsInZones(Document document, FillConfiguration config)
         {
             var result = new Dictionary<Element, string>();
 
-            if (document == null || config?.ScopeBoxMode == null)
+            if (document == null || config?.ZoneMode == null)
                 return result;
 
             try
             {
-                // Get the selected scope box IDs
-                var scopeBoxIds = config.ScopeBoxMode.SelectedScopeBoxIds;
-                if (scopeBoxIds == null || scopeBoxIds.Count == 0)
+                // Get the selected zone IDs
+                var zoneIds = config.ZoneMode.SelectedZoneIds;
+                if (zoneIds == null || zoneIds.Count == 0)
                 {
-                    _logger.Warn("No valid scope boxes selected");
+                    _logger.Warn("No valid zones selected");
                     return result;
                 }
-
-                // Get tolerance
-                var tolerance = config.ScopeBoxMode.Tolerance;
 
                 // Get selected categories
                 var selectedCategories = config.GetSelectedCategories();
                 if (!selectedCategories.Any())
                 {
-                    _logger.Warn("No categories selected for scope box fill");
+                    _logger.Warn("No categories selected for zone fill");
                     return result;
                 }
 
@@ -200,80 +191,86 @@ namespace COBIeManager.Shared.Services
                     }
                 }
 
-                // Collect scope box elements with their bounding boxes and areas
-                var scopeBoxesWithArea = new List<(Element scopeBox, BoundingBoxXYZ bbox, double area)>();
-                foreach (var scopeBoxId in scopeBoxIds)
+                // Collect zone elements with their bounding boxes and areas
+                var zonesWithArea = new List<(Element zone, BoundingBoxXYZ bbox, double area)>();
+                foreach (var zoneId in zoneIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
-                    if (scopeBox == null)
+                    var zone = document.GetElement(zoneId);
+                    if (zone == null)
                     {
-                        _logger.Warn($"Scope box with ID {scopeBoxId.IntegerValue} not found");
+                        _logger.Warn($"Zone with ID {zoneId.IntegerValue} not found");
                         continue;
                     }
 
-                    var boundingBox = GetScopeBoxBoundingBox(scopeBox);
+                    var boundingBox = GetZoneBoundingBox(zone);
                     if (boundingBox == null)
                     {
-                        _logger.Warn($"Could not get bounding box for scope box {scopeBox.Name}");
+                        _logger.Warn($"Could not get bounding box for zone {zone.Name}");
                         continue;
                     }
 
                     double area = GetBoundingBoxArea(boundingBox);
-                    scopeBoxesWithArea.Add((scopeBox, boundingBox, area));
+                    zonesWithArea.Add((zone, boundingBox, area));
                 }
 
                 // Sort by area (largest to smallest) to handle nesting
-                // Larger boxes are processed first, smaller (nested) boxes can override
-                scopeBoxesWithArea = scopeBoxesWithArea
+                // Larger zones are processed first, smaller (nested) zones can override
+                zonesWithArea = zonesWithArea
                     .OrderByDescending(x => x.area)
                     .ToList();
 
-                _logger.Info($"Processing {scopeBoxesWithArea.Count} scope boxes by area (largest to smallest)");
+                _logger.Info($"Processing {zonesWithArea.Count} zones by area (largest to smallest)");
 
-                // Process each scope box in sorted order
-                foreach (var (scopeBox, boundingBox, _) in scopeBoxesWithArea)
+                // Process each zone in sorted order
+                foreach (var (zone, boundingBox, _) in zonesWithArea)
                 {
-                    // Get the fill value (scope box name)
-                    var fillValue = scopeBox.Name;
+                    // Get the fill value - use custom name if configured, otherwise zone name
+                    var fillValue = zone.Name;
+                    if (config.ZoneMode.CustomZoneNames != null &&
+                        config.ZoneMode.CustomZoneNames.TryGetValue(zone.Id, out var customName) &&
+                        !string.IsNullOrWhiteSpace(customName))
+                    {
+                        fillValue = customName;
+                    }
 
-                    // Find elements within this scope box
-                    // Note: We allow override - smaller boxes can reassign elements from larger boxes
-                    int elementsInThisBox = 0;
+                    // Find elements within this zone
+                    // Note: We allow override - smaller zones can reassign elements from larger zones
+                    int elementsInThisZone = 0;
                     foreach (var element in allElements)
                     {
-                        if (IsElementInScopeBox(element, boundingBox, tolerance))
+                        if (IsElementInZone(element, boundingBox))
                         {
-                            // Always assign/reassign - smaller boxes override larger ones
+                            // Always assign/reassign - smaller zones override larger ones
                             result[element] = fillValue;
-                            elementsInThisBox++;
+                            elementsInThisZone++;
                         }
                     }
 
-                    _logger.Info($"Found {elementsInThisBox} elements within scope box {scopeBox.Name} (area: {GetBoundingBoxArea(boundingBox):F2})");
+                    _logger.Info($"Found {elementsInThisZone} elements within zone {zone.Name} (area: {GetBoundingBoxArea(boundingBox):F2})");
                 }
 
-                _logger.Info($"Total {result.Count} elements assigned to scope boxes");
+                _logger.Info($"Total {result.Count} elements assigned to zones");
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error finding elements in scope boxes: {ex.Message}");
+                _logger.Error($"Error finding elements in zones: {ex.Message}");
             }
 
             return result;
         }
 
         /// <summary>
-        /// Preview the scope box fill operation
+        /// Preview the zone fill operation
         /// </summary>
-        public ScopeBoxFillSummary PreviewFill(
+        public ZoneFillSummary PreviewFill(
             Document document,
             FillConfiguration config,
             Action<int, string> progressAction = null)
         {
             var stopwatch = Stopwatch.StartNew();
-            var summary = new ScopeBoxFillSummary();
+            var summary = new ZoneFillSummary();
 
-            if (document == null || config?.ScopeBoxMode == null)
+            if (document == null || config?.ZoneMode == null)
             {
                 summary.Errors++;
                 summary.ErrorMessages.Add("Invalid document or configuration");
@@ -283,44 +280,44 @@ namespace COBIeManager.Shared.Services
 
             try
             {
-                progressAction?.Invoke(0, "Getting scope box information...");
+                progressAction?.Invoke(0, "Getting zone information...");
 
-                // Get the selected scope boxes
-                var scopeBoxIds = config.ScopeBoxMode.SelectedScopeBoxIds;
-                if (scopeBoxIds == null || scopeBoxIds.Count == 0)
+                // Get the selected zones
+                var zoneIds = config.ZoneMode.SelectedZoneIds;
+                if (zoneIds == null || zoneIds.Count == 0)
                 {
                     summary.Errors++;
-                    summary.ErrorMessages.Add("No scope boxes selected");
+                    summary.ErrorMessages.Add("No zones selected");
                     summary.ProcessingDuration = stopwatch.Elapsed;
                     return summary;
                 }
 
-                // Build summary of scope boxes
-                var scopeBoxNames = new List<string>();
-                foreach (var scopeBoxId in scopeBoxIds)
+                // Build summary of zones
+                var zoneNames = new List<string>();
+                foreach (var zoneId in zoneIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
-                    if (scopeBox != null)
+                    var zone = document.GetElement(zoneId);
+                    if (zone != null)
                     {
-                        scopeBoxNames.Add(scopeBox.Name);
+                        zoneNames.Add(zone.Name);
                     }
                 }
 
-                summary.ScopeBoxName = string.Join(", ", scopeBoxNames);
-                summary.FillValue = $"{scopeBoxIds.Count} scope box(es)";
+                summary.ZoneName = string.Join(", ", zoneNames);
+                summary.FillValue = $"{zoneIds.Count} zone(s)";
 
-                progressAction?.Invoke(10, $"Finding elements in {scopeBoxIds.Count} scope box(es)...");
+                progressAction?.Invoke(10, $"Finding elements in {zoneIds.Count} zone(s)...");
 
-                // Find elements within the scope boxes
-                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, config);
-                summary.ElementsFound = elementsInScopeBoxes.Count;
+                // Find elements within the zones
+                var elementsInZones = FindElementsInZones(document, config);
+                summary.ElementsFound = elementsInZones.Count;
 
                 // Get parameters to fill
-                var parametersToFill = config.GetScopeBoxModeParameters();
+                var parametersToFill = config.GetZoneModeParameters();
                 if (!parametersToFill.Any())
                 {
                     summary.Errors++;
-                    summary.ErrorMessages.Add("No parameters mapped to Scope Box mode");
+                    summary.ErrorMessages.Add("No parameters mapped to Zone mode");
                     summary.ProcessingDuration = stopwatch.Elapsed;
                     return summary;
                 }
@@ -332,7 +329,7 @@ namespace COBIeManager.Shared.Services
                 int parametersWouldFill = 0;
                 int parametersWouldSkip = 0;
 
-                foreach (var kvp in elementsInScopeBoxes)
+                foreach (var kvp in elementsInZones)
                 {
                     var element = kvp.Key;
                     var fillValue = kvp.Value;
@@ -368,7 +365,7 @@ namespace COBIeManager.Shared.Services
             {
                 summary.Errors++;
                 summary.ErrorMessages.Add($"Preview failed: {ex.Message}");
-                _logger.Error($"Scope box preview error: {ex.Message}");
+                _logger.Error($"Zone preview error: {ex.Message}");
             }
             finally
             {
@@ -380,17 +377,17 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
-        /// Execute the scope box fill operation
+        /// Execute the zone fill operation
         /// </summary>
-        public ScopeBoxFillSummary ExecuteFill(
+        public ZoneFillSummary ExecuteFill(
             Document document,
             FillConfiguration config,
             Action<int, string> progressAction = null)
         {
             var stopwatch = Stopwatch.StartNew();
-            var summary = new ScopeBoxFillSummary();
+            var summary = new ZoneFillSummary();
 
-            if (document == null || config?.ScopeBoxMode == null)
+            if (document == null || config?.ZoneMode == null)
             {
                 summary.Errors++;
                 summary.ErrorMessages.Add("Invalid document or configuration");
@@ -400,44 +397,44 @@ namespace COBIeManager.Shared.Services
 
             try
             {
-                progressAction?.Invoke(0, "Getting scope box information...");
+                progressAction?.Invoke(0, "Getting zone information...");
 
-                // Get the selected scope boxes
-                var scopeBoxIds = config.ScopeBoxMode.SelectedScopeBoxIds;
-                if (scopeBoxIds == null || scopeBoxIds.Count == 0)
+                // Get the selected zones
+                var zoneIds = config.ZoneMode.SelectedZoneIds;
+                if (zoneIds == null || zoneIds.Count == 0)
                 {
                     summary.Errors++;
-                    summary.ErrorMessages.Add("No scope boxes selected");
+                    summary.ErrorMessages.Add("No zones selected");
                     summary.ProcessingDuration = stopwatch.Elapsed;
                     return summary;
                 }
 
-                // Build summary of scope boxes
-                var scopeBoxNames = new List<string>();
-                foreach (var scopeBoxId in scopeBoxIds)
+                // Build summary of zones
+                var zoneNames = new List<string>();
+                foreach (var zoneId in zoneIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
-                    if (scopeBox != null)
+                    var zone = document.GetElement(zoneId);
+                    if (zone != null)
                     {
-                        scopeBoxNames.Add(scopeBox.Name);
+                        zoneNames.Add(zone.Name);
                     }
                 }
 
-                summary.ScopeBoxName = string.Join(", ", scopeBoxNames);
-                summary.FillValue = $"{scopeBoxIds.Count} scope box(es)";
+                summary.ZoneName = string.Join(", ", zoneNames);
+                summary.FillValue = $"{zoneIds.Count} zone(s)";
 
-                progressAction?.Invoke(10, $"Finding elements in {scopeBoxIds.Count} scope box(es)...");
+                progressAction?.Invoke(10, $"Finding elements in {zoneIds.Count} zone(s)...");
 
-                // Find elements within the scope boxes
-                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, config);
-                summary.ElementsFound = elementsInScopeBoxes.Count;
+                // Find elements within the zones
+                var elementsInZones = FindElementsInZones(document, config);
+                summary.ElementsFound = elementsInZones.Count;
 
                 // Get parameters to fill
-                var parametersToFill = config.GetScopeBoxModeParameters();
+                var parametersToFill = config.GetZoneModeParameters();
                 if (!parametersToFill.Any())
                 {
                     summary.Errors++;
-                    summary.ErrorMessages.Add("No parameters mapped to Scope Box mode");
+                    summary.ErrorMessages.Add("No parameters mapped to Zone mode");
                     summary.ProcessingDuration = stopwatch.Elapsed;
                     return summary;
                 }
@@ -445,14 +442,14 @@ namespace COBIeManager.Shared.Services
                 progressAction?.Invoke(20, $"Starting fill operation on {summary.ElementsFound} elements...");
 
                 // Start a transaction
-                using (var transaction = new Transaction(document, "Fill Scope Box Parameters"))
+                using (var transaction = new Transaction(document, "Fill Zone Parameters"))
                 {
                     transaction.Start();
 
                     int processedElements = 0;
-                    int totalOperations = elementsInScopeBoxes.Count * parametersToFill.Count;
+                    int totalOperations = elementsInZones.Count * parametersToFill.Count;
 
-                    foreach (var kvp in elementsInScopeBoxes)
+                    foreach (var kvp in elementsInZones)
                     {
                         var element = kvp.Key;
                         var fillValue = kvp.Value;
@@ -509,13 +506,13 @@ namespace COBIeManager.Shared.Services
                 }
 
                 progressAction?.Invoke(100, "Fill complete");
-                _logger.Info($"Scope box fill complete: {summary.ParametersFilled} parameters filled, {summary.ParametersSkipped} skipped");
+                _logger.Info($"Zone fill complete: {summary.ParametersFilled} parameters filled, {summary.ParametersSkipped} skipped");
             }
             catch (Exception ex)
             {
                 summary.Errors++;
                 summary.ErrorMessages.Add($"Fill failed: {ex.Message}");
-                _logger.Error($"Scope box fill error: {ex.Message}");
+                _logger.Error($"Zone fill error: {ex.Message}");
             }
             finally
             {
@@ -524,15 +521,6 @@ namespace COBIeManager.Shared.Services
             }
 
             return summary;
-        }
-
-        /// <summary>
-        /// Finds all elements within the selected scope box bounds (legacy method for backward compatibility)
-        /// </summary>
-        [Obsolete("Use FindElementsInScopeBoxes instead")]
-        public IDictionary<Element, string> FindElementsInScopeBox(Document document, FillConfiguration config)
-        {
-            return FindElementsInScopeBoxes(document, config);
         }
     }
 }

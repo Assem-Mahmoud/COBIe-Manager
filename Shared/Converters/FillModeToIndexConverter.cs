@@ -43,6 +43,7 @@ namespace COBIeManager.Shared.Converters
                 4 => 2,  // RoomNumber
                 8 => 3,  // Groups
                 16 => 4, // ScopeBox (Building)
+                32 => 5, // Zone
                 _ => -1  // Unmapped
             };
         }
@@ -66,6 +67,7 @@ namespace COBIeManager.Shared.Converters
                     2 => FillMode.RoomNumber,
                     3 => FillMode.Groups,
                     4 => FillMode.ScopeBox,
+                    5 => FillMode.Zone,
                     _ => FillMode.None
                 };
             }

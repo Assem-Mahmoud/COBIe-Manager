@@ -305,6 +305,46 @@ namespace COBIeManager.Shared.Services
             // Return the nearer level (typically top for elements between levels)
             return distanceToTop <= distanceToBase ? topLevel : baseLevel;
         }
+
+        /// <summary>
+        /// Finds the nearest level among a list of levels.
+        /// For excluded categories, determines which level from the list is nearest to the element.
+        /// </summary>
+        /// <param name="element">Element to find nearest level for</param>
+        /// <param name="levels">List of levels to search (must contain at least 2)</param>
+        /// <returns>Nearest level from the list or null if element has no bounding box or list is empty</returns>
+        public Level FindNearestLevelAmong(Element element, IList<Level> levels)
+        {
+            if (element == null || levels == null)
+            {
+                return null;
+            }
+
+            var bbox = element.get_BoundingBox(null);
+            if (bbox == null)
+            {
+                return null;
+            }
+
+            // Use the middle of the element's bounding box
+            var elementElevation = (bbox.Min.Z + bbox.Max.Z) / 2.0;
+
+            // Find the nearest level
+            Level nearestLevel = null;
+            double minDistance = double.MaxValue;
+
+            foreach (var level in levels)
+            {
+                var distance = System.Math.Abs(level.Elevation - elementElevation);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearestLevel = level;
+                }
+            }
+
+            return nearestLevel;
+        }
     }
 
     /// <summary>

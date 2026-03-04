@@ -1,5 +1,6 @@
 using Autodesk.Revit.DB;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace COBIeManager.Shared.Models
@@ -17,12 +18,12 @@ namespace COBIeManager.Shared.Models
         /// The selected scope boxes to use for filling
         /// Each scope box will assign its name to elements within its bounds
         /// </summary>
-        public IList<ElementId> SelectedScopeBoxIds { get; set; } = new List<ElementId>();
+        public ObservableCollection<ElementId> SelectedScopeBoxIds { get; set; } = new ObservableCollection<ElementId>();
 
         /// <summary>
         /// The actual scope box elements (populated at runtime)
         /// </summary>
-        public IList<Element> SelectedScopeBoxes { get; set; } = new List<Element>();
+        public ObservableCollection<Element> SelectedScopeBoxes { get; set; } = new ObservableCollection<Element>();
 
         /// <summary>
         /// Tolerance to extend the scope box bounds in internal units (feet).
@@ -33,6 +34,12 @@ namespace COBIeManager.Shared.Models
         /// Example: 1.0 (stored) = ~305mm UI input extends the bounds by 1 foot in all directions
         /// </summary>
         public double Tolerance { get; set; } = 0.0;
+
+        /// <summary>
+        /// Custom scope box names mapped by scope box ElementId.
+        /// Key: Scope Box ElementId, Value: Custom name (or empty to use scope box name).
+        /// </summary>
+        public Dictionary<ElementId, string> CustomScopeBoxNames { get; set; } = new Dictionary<ElementId, string>();
 
         /// <summary>
         /// The fill mode this configuration applies to
@@ -80,10 +87,17 @@ namespace COBIeManager.Shared.Models
         }
 
         /// <summary>
-        /// Gets the fill value for a specific scope box (scope box name)
+        /// Gets the fill value for a specific scope box (custom name or scope box name)
         /// </summary>
         public string GetFillValue(ElementId scopeBoxId)
         {
+            // First check for custom name
+            if (CustomScopeBoxNames != null && CustomScopeBoxNames.TryGetValue(scopeBoxId, out var customName) && !string.IsNullOrWhiteSpace(customName))
+            {
+                return customName;
+            }
+
+            // Fall back to scope box name
             if (SelectedScopeBoxes != null)
             {
                 var scopeBox = SelectedScopeBoxes.FirstOrDefault(sb => sb.Id == scopeBoxId);
@@ -101,7 +115,7 @@ namespace COBIeManager.Shared.Models
         /// </summary>
         public IList<ElementId> GetSelectedScopeBoxIds()
         {
-            return SelectedScopeBoxIds ??= new List<ElementId>();
+            return SelectedScopeBoxIds ??= new ObservableCollection<ElementId>();
         }
 
         /// <summary>
@@ -119,7 +133,7 @@ namespace COBIeManager.Shared.Models
         {
             if (SelectedScopeBoxIds == null)
             {
-                SelectedScopeBoxIds = new List<ElementId>();
+                SelectedScopeBoxIds = new ObservableCollection<ElementId>();
             }
 
             if (!SelectedScopeBoxIds.Contains(scopeBoxId))
@@ -143,6 +157,58 @@ namespace COBIeManager.Shared.Models
         {
             SelectedScopeBoxIds?.Clear();
             SelectedScopeBoxes?.Clear();
+        }
+
+        /// <summary>
+        /// Sets a custom name for a scope box
+        /// </summary>
+        /// <param name="scopeBoxId">The scope box ElementId to set the custom name for</param>
+        /// <param name="customName">The custom name (empty or null to remove)</param>
+        public void SetCustomScopeBoxName(ElementId scopeBoxId, string customName)
+        {
+            if (string.IsNullOrWhiteSpace(customName))
+            {
+                // Remove custom name if empty
+                if (CustomScopeBoxNames != null && CustomScopeBoxNames.ContainsKey(scopeBoxId))
+                {
+                    CustomScopeBoxNames.Remove(scopeBoxId);
+                }
+            }
+            else
+            {
+                // Set or update custom name
+                CustomScopeBoxNames ??= new Dictionary<ElementId, string>();
+                CustomScopeBoxNames[scopeBoxId] = customName.Trim();
+            }
+        }
+
+        /// <summary>
+        /// Gets the custom name for a scope box
+        /// </summary>
+        /// <param name="scopeBoxId">The scope box ElementId to get the custom name for</param>
+        /// <returns>Custom name if set, otherwise null</returns>
+        public string GetCustomScopeBoxName(ElementId scopeBoxId)
+        {
+            if (CustomScopeBoxNames != null && CustomScopeBoxNames.TryGetValue(scopeBoxId, out var customName))
+            {
+                return customName;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Checks if a custom name exists for a scope box
+        /// </summary>
+        /// <param name="scopeBoxId">The scope box ElementId to check</param>
+        /// <returns>True if a custom name exists, false otherwise</returns>
+        public bool HasCustomScopeBoxName(ElementId scopeBoxId)
+        {
+            if (CustomScopeBoxNames != null && CustomScopeBoxNames.TryGetValue(scopeBoxId, out var customName))
+            {
+                return !string.IsNullOrWhiteSpace(customName);
+            }
+            return false;
         }
     }
 }

@@ -44,6 +44,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         // UI Collections
         public ObservableCollection<Level> Levels { get; }
         public ObservableCollection<Element> ScopeBoxes { get; }
+        public ObservableCollection<Element> Zones { get; }
         public ObservableCollection<CategoryItem> AvailableCategories { get; }
         public ObservableCollection<ParameterItem> AvailableParameters { get; }
         public ObservableCollection<FillModeItem> AvailableFillModes { get; }
@@ -90,6 +91,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             // Initialize collections
             Levels = new ObservableCollection<Level>();
             ScopeBoxes = new ObservableCollection<Element>();
+            Zones = new ObservableCollection<Element>();
             AvailableCategories = new ObservableCollection<CategoryItem>();
             AvailableParameters = new ObservableCollection<ParameterItem>();
 
@@ -115,6 +117,10 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 new FillModeItem("Building", "Fill with scope box names", FillMode.ScopeBox, "Home", isSelected: false)
                 {
                     Config = Config.ScopeBoxMode
+                },
+                new FillModeItem("Zone", "Fill with zone names", FillMode.Zone, "CheckboxBlankCircleOutline", isSelected: false)
+                {
+                    Config = Config.ZoneMode
                 }
             };
 
@@ -149,6 +155,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             // Load data from document
             LoadLevels();
             LoadScopeBoxes();
+            LoadZones();
             LoadCategories();
             LoadParameters();
         }
@@ -270,11 +277,24 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     Levels.Add(level);
                 }
 
-                // Set default levels if available on LevelMode config
-                if (Levels.Count >= 2)
+                // Restore selected levels from config
+                // First, save the previously selected IDs before clearing
+                var previouslySelectedIds = Config.LevelMode.SelectedLevelIds.ToList();
+                Config.LevelMode.SelectedLevels.Clear();
+                Config.LevelMode.SelectedLevelIds.Clear();
+                foreach (var level in Levels.Where(l => previouslySelectedIds.Contains(l.Id)))
                 {
-                    Config.LevelMode.BaseLevel = Levels[0];
-                    Config.LevelMode.TopLevel = Levels[1];
+                    Config.LevelMode.SelectedLevels.Add(level);
+                    Config.LevelMode.SelectedLevelIds.Add(level.Id);
+                }
+
+                // If no levels were previously selected and we have at least 2, select the first 2 by default
+                if (Config.LevelMode.SelectedLevels.Count == 0 && Levels.Count >= 2)
+                {
+                    Config.LevelMode.SelectedLevels.Add(Levels[0]);
+                    Config.LevelMode.SelectedLevelIds.Add(Levels[0].Id);
+                    Config.LevelMode.SelectedLevels.Add(Levels[1]);
+                    Config.LevelMode.SelectedLevelIds.Add(Levels[1].Id);
                 }
 
                 StatusMessage = $"Loaded {Levels.Count} levels";
@@ -283,6 +303,185 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             {
                 StatusMessage = $"Error loading levels: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Toggles the selection of a level
+        /// </summary>
+        public void ToggleLevel(Level level)
+        {
+            if (level == null || Config?.LevelMode == null)
+                return;
+
+            var levelId = level.Id;
+
+            if (Config.LevelMode.SelectedLevelIds.Contains(levelId))
+            {
+                Config.LevelMode.SelectedLevelIds.Remove(levelId);
+                Config.LevelMode.SelectedLevels.Remove(level);
+            }
+            else
+            {
+                Config.LevelMode.SelectedLevelIds.Add(levelId);
+                Config.LevelMode.SelectedLevels.Add(level);
+            }
+
+            // Notify that the collections have changed
+            OnPropertyChanged(nameof(Config.LevelMode.SelectedLevelIds));
+            OnPropertyChanged(nameof(Config.LevelMode.SelectedLevels));
+
+            StatusMessage = $"Selected {Config.LevelMode.SelectedLevelIds.Count} level(s)";
+        }
+
+        /// <summary>
+        /// Command for toggling level selection
+        /// </summary>
+        public IRelayCommand<Level> ToggleLevelCommand => new RelayCommand<Level>(ToggleLevel);
+
+        /// <summary>
+        /// Checks if a level is selected
+        /// </summary>
+        public bool IsLevelSelected(Level level)
+        {
+            if (level == null || Config?.LevelMode == null)
+                return false;
+
+            return Config.LevelMode.SelectedLevelIds.Contains(level.Id);
+        }
+
+        /// <summary>
+        /// Sets a custom name for a level
+        /// </summary>
+        /// <param name="level">The level to set the custom name for</param>
+        /// <param name="customName">The custom name (empty or null to remove)</param>
+        public void SetCustomLevelName(Level level, string customName)
+        {
+            if (level == null || Config?.LevelMode == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(customName))
+            {
+                // Remove custom name if empty
+                if (Config.LevelMode.CustomLevelNames.ContainsKey(level.Id))
+                {
+                    Config.LevelMode.CustomLevelNames.Remove(level.Id);
+                }
+            }
+            else
+            {
+                // Set or update custom name
+                Config.LevelMode.CustomLevelNames[level.Id] = customName.Trim();
+            }
+
+            StatusMessage = $"Custom name {(string.IsNullOrWhiteSpace(customName) ? "removed" : "set")} for {level.Name}";
+        }
+
+        /// <summary>
+        /// Gets the custom name for a level
+        /// </summary>
+        /// <param name="level">The level to get the custom name for</param>
+        /// <returns>Custom name if set, otherwise null</returns>
+        public string GetCustomLevelName(Level level)
+        {
+            if (level == null || Config?.LevelMode == null)
+                return null;
+
+            if (Config.LevelMode.CustomLevelNames.TryGetValue(level.Id, out var customName))
+            {
+                return customName;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Sets a custom name for a zone (scope box)
+        /// </summary>
+        /// <param name="zone">The zone element to set the custom name for</param>
+        /// <param name="customName">The custom name (empty or null to remove)</param>
+        public void SetCustomZoneName(Element zone, string customName)
+        {
+            if (zone == null || Config?.ZoneMode == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(customName))
+            {
+                // Remove custom name if empty
+                if (Config.ZoneMode.CustomZoneNames.ContainsKey(zone.Id))
+                {
+                    Config.ZoneMode.CustomZoneNames.Remove(zone.Id);
+                }
+            }
+            else
+            {
+                // Set or update custom name
+                Config.ZoneMode.CustomZoneNames[zone.Id] = customName.Trim();
+            }
+
+            StatusMessage = $"Custom name {(string.IsNullOrWhiteSpace(customName) ? "removed" : "set")} for {zone.Name}";
+        }
+
+        /// <summary>
+        /// Gets the custom name for a zone
+        /// </summary>
+        /// <param name="zone">The zone element to get the custom name for</param>
+        /// <returns>Custom name if set, otherwise null</returns>
+        public string GetCustomZoneName(Element zone)
+        {
+            if (zone == null || Config?.ZoneMode == null)
+                return null;
+
+            if (Config.ZoneMode.CustomZoneNames.TryGetValue(zone.Id, out var customName))
+            {
+                return customName;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Sets a custom name for a scope box
+        /// </summary>
+        /// <param name="scopeBox">The scope box element to set the custom name for</param>
+        /// <param name="customName">The custom name (empty or null to remove)</param>
+        public void SetCustomScopeBoxName(Element scopeBox, string customName)
+        {
+            if (scopeBox == null || Config?.ScopeBoxMode == null)
+                return;
+
+            if (string.IsNullOrWhiteSpace(customName))
+            {
+                // Remove custom name if empty
+                if (Config.ScopeBoxMode.CustomScopeBoxNames.ContainsKey(scopeBox.Id))
+                {
+                    Config.ScopeBoxMode.CustomScopeBoxNames.Remove(scopeBox.Id);
+                }
+            }
+            else
+            {
+                // Set or update custom name
+                Config.ScopeBoxMode.CustomScopeBoxNames[scopeBox.Id] = customName.Trim();
+            }
+
+            StatusMessage = $"Custom name {(string.IsNullOrWhiteSpace(customName) ? "removed" : "set")} for {scopeBox.Name}";
+        }
+
+        /// <summary>
+        /// Gets the custom name for a scope box
+        /// </summary>
+        /// <param name="scopeBox">The scope box element to get the custom name for</param>
+        /// <returns>Custom name if set, otherwise null</returns>
+        public string GetCustomScopeBoxName(Element scopeBox)
+        {
+            if (scopeBox == null || Config?.ScopeBoxMode == null)
+                return null;
+
+            if (Config.ScopeBoxMode.CustomScopeBoxNames.TryGetValue(scopeBox.Id, out var customName))
+            {
+                return customName;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -317,10 +516,14 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 }
 
                 // Restore selected scope boxes from config
+                // First, save the previously selected IDs before clearing
+                var previouslySelectedIds = Config.ScopeBoxMode.SelectedScopeBoxIds.ToList();
                 Config.ScopeBoxMode.SelectedScopeBoxes.Clear();
-                foreach (var scopeBox in ScopeBoxes.Where(sb => Config.ScopeBoxMode.SelectedScopeBoxIds.Contains(sb.Id)))
+                Config.ScopeBoxMode.SelectedScopeBoxIds.Clear();
+                foreach (var scopeBox in ScopeBoxes.Where(sb => previouslySelectedIds.Contains(sb.Id)))
                 {
                     Config.ScopeBoxMode.SelectedScopeBoxes.Add(scopeBox);
+                    Config.ScopeBoxMode.SelectedScopeBoxIds.Add(scopeBox.Id);
                 }
 
                 StatusMessage = $"Loaded {ScopeBoxes.Count} scope boxes";
@@ -328,6 +531,56 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Error loading scope boxes: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Loads zones (scope boxes) from the Revit document
+        /// </summary>
+        private void LoadZones()
+        {
+            if (_uiDoc == null || _uiDoc.Document == null)
+            {
+                StatusMessage = "No active document";
+                return;
+            }
+
+            try
+            {
+                var doc = _uiDoc.Document;
+
+                // Get zones (scope boxes - category: OST_VolumeOfInterest)
+                var zoneCollector = new FilteredElementCollector(doc)
+                    .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_VolumeOfInterest)
+                    .WhereElementIsNotElementType();
+
+                Zones.Clear();
+                var zoneElements = zoneCollector
+                    .OrderBy(z => z.Name)
+                    .ToList();
+
+                // Populate zones and restore selections from config
+                foreach (var zone in zoneElements)
+                {
+                    Zones.Add(zone);
+                }
+
+                // Restore selected zones from config
+                // First, save the previously selected IDs before clearing
+                var previouslySelectedIds = Config.ZoneMode.SelectedZoneIds.ToList();
+                Config.ZoneMode.SelectedZones.Clear();
+                Config.ZoneMode.SelectedZoneIds.Clear();
+                foreach (var zone in Zones.Where(z => previouslySelectedIds.Contains(z.Id)))
+                {
+                    Config.ZoneMode.SelectedZones.Add(zone);
+                    Config.ZoneMode.SelectedZoneIds.Add(zone.Id);
+                }
+
+                StatusMessage = $"Loaded {Zones.Count} zones";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error loading zones: {ex.Message}";
             }
         }
 
@@ -779,6 +1032,39 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
+        /// Toggles the selection of a zone
+        /// </summary>
+        [RelayCommand]
+        private void ToggleZone(Autodesk.Revit.DB.Element zoneElement)
+        {
+            if (zoneElement == null || Config?.ZoneMode == null)
+                return;
+
+            var zoneId = zoneElement.Id;
+
+            if (Config.ZoneMode.IsZoneSelected(zoneId))
+            {
+                Config.ZoneMode.RemoveZone(zoneId);
+            }
+            else
+            {
+                Config.ZoneMode.AddZone(zoneId);
+            }
+
+            // Update the SelectedZones collection
+            Config.ZoneMode.SelectedZones.Clear();
+            foreach (var zone in Zones.Where(z => Config.ZoneMode.SelectedZoneIds.Contains(z.Id)))
+            {
+                Config.ZoneMode.SelectedZones.Add(zone);
+            }
+
+            // Notify that the collection has changed
+            OnPropertyChanged(nameof(Config.ZoneMode.SelectedZoneIds));
+
+            StatusMessage = $"Selected {Config.ZoneMode.SelectedZoneIds.Count} zone(s)";
+        }
+
+        /// <summary>
         /// Opens the parameter mapping dialog
         /// </summary>
         [RelayCommand]
@@ -942,6 +1228,9 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         break;
                     case FillMode.ScopeBox:
                         Config.ScopeBoxMode.IsEnabled = modeItem.IsSelected;
+                        break;
+                    case FillMode.Zone:
+                        Config.ZoneMode.IsEnabled = modeItem.IsSelected;
                         break;
                 }
             }

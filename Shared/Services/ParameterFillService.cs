@@ -21,6 +21,7 @@ namespace COBIeManager.Shared.Services
         private readonly IBoxIdFillService _boxIdFillService;
         private readonly IRoomFillService _roomFillService;
         private readonly IScopeBoxAssignmentService _scopeBoxAssignmentService;
+        private readonly IZoneAssignmentService _zoneAssignmentService;
 
         public ParameterFillService(
             ILogger logger,
@@ -28,7 +29,8 @@ namespace COBIeManager.Shared.Services
             IRoomAssignmentService roomAssignmentService,
             IBoxIdFillService boxIdFillService,
             IRoomFillService roomFillService,
-            IScopeBoxAssignmentService scopeBoxAssignmentService)
+            IScopeBoxAssignmentService scopeBoxAssignmentService,
+            IZoneAssignmentService zoneAssignmentService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _levelAssignmentService = levelAssignmentService ?? throw new ArgumentNullException(nameof(levelAssignmentService));
@@ -36,6 +38,7 @@ namespace COBIeManager.Shared.Services
             _boxIdFillService = boxIdFillService ?? throw new ArgumentNullException(nameof(boxIdFillService));
             _roomFillService = roomFillService ?? throw new ArgumentNullException(nameof(roomFillService));
             _scopeBoxAssignmentService = scopeBoxAssignmentService ?? throw new ArgumentNullException(nameof(scopeBoxAssignmentService));
+            _zoneAssignmentService = zoneAssignmentService ?? throw new ArgumentNullException(nameof(zoneAssignmentService));
         }
 
         /// <summary>
@@ -75,6 +78,7 @@ namespace COBIeManager.Shared.Services
             bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
             bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
             bool hasScopeBoxMode = (config.FillMode & FillMode.ScopeBox) != 0;
+            bool hasZoneMode = (config.FillMode & FillMode.Zone) != 0;
 
             // Process room name preview if mode is selected and parameters are mapped
             if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
@@ -140,6 +144,23 @@ namespace COBIeManager.Shared.Services
                 _logger.Info($"ScopeBox mode preview: {scopeBoxPreview.ElementsFound} elements in scope box, {scopeBoxPreview.ParametersFilled} parameters to fill");
             }
 
+            // Process zone preview if mode is selected and parameters are mapped
+            if (hasZoneMode && config.GetZoneModeParameters().Count > 0)
+            {
+                var zonePreview = _zoneAssignmentService.PreviewFill(document, config);
+                summary.EstimatedElementsToProcess += zonePreview.ElementsFound;
+
+                if (zonePreview.Errors > 0)
+                {
+                    foreach (var error in zonePreview.ErrorMessages)
+                    {
+                        summary.AddValidationWarning(error);
+                    }
+                }
+
+                _logger.Info($"Zone mode preview: {zonePreview.ElementsFound} elements in zone, {zonePreview.ParametersFilled} parameters to fill");
+            }
+
             // Process level preview if mode is selected and parameters are mapped
             if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
             {
@@ -149,9 +170,22 @@ namespace COBIeManager.Shared.Services
                 {
                     _logger.Info($"Previewing {elements.Count} elements for level mode");
 
+                    // Sort selected levels by elevation
+                    var sortedLevels = config.LevelMode.SelectedLevels
+                        .OrderBy(l => l.Elevation)
+                        .ToList();
+
+                    if (sortedLevels.Count < 2)
+                    {
+                        summary.AddValidationWarning("At least 2 levels must be selected for level mode");
+                        return summary;
+                    }
+
                     int inBandCount = 0;
                     int inBandByCenterCount = 0;
                     int nearestLevelCount = 0;
+                    int belowLowestCount = 0;
+                    int aboveHighestCount = 0;
 
                     foreach (var element in elements)
                     {
@@ -163,40 +197,78 @@ namespace COBIeManager.Shared.Services
                             isExcludedCategory = config.LevelMode.ExcludedCategories.Contains(categoryId);
                         }
 
+                        Level assignedLevel = null;
+
                         if (isExcludedCategory)
                         {
-                            // Will use nearest level logic
-                            var nearestLevel = _levelAssignmentService.FindNearestLevelBetween(
+                            // Use nearest level logic across all selected levels
+                            assignedLevel = _levelAssignmentService.FindNearestLevelAmong(
                                 element,
-                                config.BaseLevel,
-                                config.TopLevel);
-                            if (nearestLevel != null)
+                                sortedLevels);
+                            if (assignedLevel != null)
                             {
                                 nearestLevelCount++;
                             }
                         }
                         else
                         {
-                            // Standard level band check - get position to distinguish fully inside vs center
-                            var position = _levelAssignmentService.GetElementPositionInBand(
-                                element,
-                                config.BaseLevel,
-                                config.TopLevel
-                                );
+                            // Process through consecutive ranges
+                            assignedLevel = ProcessLevelRanges(element, sortedLevels);
 
-                            if (position == LevelBandPosition.InBand)
+                            if (assignedLevel != null)
                             {
-                                inBandCount++;
-                            }
-                            else if (position == LevelBandPosition.InBandByCenter)
-                            {
-                                inBandByCenterCount++;
+                                // Check if it's an edge case (below lowest or above highest)
+                                if (assignedLevel.Id == sortedLevels.First().Id)
+                                {
+                                    var position = _levelAssignmentService.GetElementPositionInBand(
+                                        element,
+                                        sortedLevels[0],
+                                        sortedLevels[1]);
+
+                                    if (position == LevelBandPosition.BelowBand)
+                                    {
+                                        belowLowestCount++;
+                                    }
+                                    else if (position == LevelBandPosition.InBand)
+                                    {
+                                        inBandCount++;
+                                    }
+                                    else if (position == LevelBandPosition.InBandByCenter)
+                                    {
+                                        inBandByCenterCount++;
+                                    }
+                                }
+                                else if (assignedLevel.Id == sortedLevels.Last().Id)
+                                {
+                                    var position = _levelAssignmentService.GetElementPositionInBand(
+                                        element,
+                                        sortedLevels[sortedLevels.Count - 2],
+                                        sortedLevels[sortedLevels.Count - 1]);
+
+                                    if (position == LevelBandPosition.AboveBand)
+                                    {
+                                        aboveHighestCount++;
+                                    }
+                                    else if (position == LevelBandPosition.InBand)
+                                    {
+                                        inBandCount++;
+                                    }
+                                    else if (position == LevelBandPosition.InBandByCenter)
+                                    {
+                                        inBandByCenterCount++;
+                                    }
+                                }
+                                else
+                                {
+                                    // In a middle range
+                                    inBandCount++;
+                                }
                             }
                         }
                     }
 
-                    summary.EstimatedElementsToProcess += inBandCount + inBandByCenterCount + nearestLevelCount;
-                    _logger.Info($"Level mode preview: {inBandCount} fully in band, {inBandByCenterCount} by center, {nearestLevelCount} using nearest level");
+                    summary.EstimatedElementsToProcess += inBandCount + inBandByCenterCount + nearestLevelCount + belowLowestCount + aboveHighestCount;
+                    _logger.Info($"Level mode preview: {inBandCount} fully in band, {inBandByCenterCount} by center, {nearestLevelCount} nearest level, {belowLowestCount} below lowest, {aboveHighestCount} above highest");
                 }
             }
 
@@ -247,8 +319,9 @@ namespace COBIeManager.Shared.Services
             bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
             bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
             bool hasScopeBoxMode = (config.FillMode & FillMode.ScopeBox) != 0;
+            bool hasZoneMode = (config.FillMode & FillMode.Zone) != 0;
 
-            _logger.Info($"Processing modes - Level: {hasLevelMode}, RoomName: {hasRoomNameMode}, RoomNumber: {hasRoomNumberMode}, Groups: {hasGroupsMode}, ScopeBox: {hasScopeBoxMode}");
+            _logger.Info($"Processing modes - Level: {hasLevelMode}, RoomName: {hasRoomNameMode}, RoomNumber: {hasRoomNumberMode}, Groups: {hasGroupsMode}, ScopeBox: {hasScopeBoxMode}, Zone: {hasZoneMode}");
 
             // Process room name fill if mode is selected and parameters are mapped
             if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
@@ -299,6 +372,15 @@ namespace COBIeManager.Shared.Services
                 _logger.Info($"Scope box fill complete: {scopeBoxSummary.ParametersFilled} parameters filled, {scopeBoxSummary.ElementsFound} elements in scope box");
             }
 
+            // Process zone fill if mode is selected and parameters are mapped
+            if (hasZoneMode && config.GetZoneModeParameters().Count > 0)
+            {
+                _logger.Info("Processing zone fill");
+                var zoneSummary = _zoneAssignmentService.ExecuteFill(document, config, progressAction);
+                finalSummary.ZoneFillSummary = zoneSummary;
+                _logger.Info($"Zone fill complete: {zoneSummary.ParametersFilled} parameters filled, {zoneSummary.ElementsFound} elements in zone");
+            }
+
             // Process level fill if mode is selected and parameters are mapped
             if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
             {
@@ -311,6 +393,19 @@ namespace COBIeManager.Shared.Services
 
                     var selectedParameters = config.GetLevelModeParameters();
                     _logger.Info($"Filling {selectedParameters.Count} level-mode parameters: {string.Join(", ", selectedParameters)}");
+
+                    // Sort selected levels by elevation
+                    var sortedLevels = config.LevelMode.SelectedLevels
+                        .OrderBy(l => l.Elevation)
+                        .ToList();
+
+                    if (sortedLevels.Count < 2)
+                    {
+                        _logger.Error("At least 2 levels must be selected for level mode");
+                        throw new InvalidOperationException("At least 2 levels must be selected for level mode");
+                    }
+
+                    _logger.Info($"Processing {sortedLevels.Count} levels from elevation {sortedLevels.First().Elevation} to {sortedLevels.Last().Elevation}");
 
                     // Use transaction for parameter modification
                     using (var transaction = new Transaction(document, "Auto-Fill Level Parameters"))
@@ -343,30 +438,19 @@ namespace COBIeManager.Shared.Services
                                     isExcludedCategory = config.LevelMode.ExcludedCategories.Contains(categoryId);
                                 }
 
+                                Level assignedLevel = null;
+
                                 if (isExcludedCategory)
                                 {
-                                    // Use nearest level logic (between base and top only)
-                                    var nearestLevel = _levelAssignmentService.FindNearestLevelBetween(
+                                    // Use nearest level logic across all selected levels
+                                    assignedLevel = _levelAssignmentService.FindNearestLevelAmong(
                                         element,
-                                        config.BaseLevel,
-                                        config.TopLevel);
+                                        sortedLevels);
 
-                                    if (nearestLevel != null)
+                                    if (assignedLevel != null)
                                     {
-                                        // Determine which custom name to use based on the nearest level
-                                        string levelNameToUse;
-                                        if (nearestLevel.Id == config.LevelMode.TopLevel.Id)
-                                        {
-                                            levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomTopLevelName)
-                                                ? config.LevelMode.CustomTopLevelName
-                                                : nearestLevel.Name;
-                                        }
-                                        else
-                                        {
-                                            levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
-                                                ? config.LevelMode.CustomLevelName
-                                                : nearestLevel.Name;
-                                        }
+                                        // Get custom name if configured
+                                        string levelNameToUse = GetLevelName(assignedLevel, config.LevelMode);
 
                                         foreach (var paramName in selectedParameters)
                                         {
@@ -384,12 +468,8 @@ namespace COBIeManager.Shared.Services
                                         }
                                         totalSucessElements.Add(element.Id);
 
-                                        // Log success for the first parameter (to avoid spamming logs)
-                                        if (selectedParameters.Count > 0)
-                                        {
-                                            processingLogger.LogSuccess(element.Id, element.Category?.Name,
-                                                $"Filled {selectedParameters.Count} level parameters (nearest level: {nearestLevel.Name})");
-                                        }
+                                        processingLogger.LogSuccess(element.Id, element.Category?.Name,
+                                            $"Filled {selectedParameters.Count} level parameters (nearest level: {assignedLevel.Name})");
                                     }
                                     else
                                     {
@@ -398,19 +478,13 @@ namespace COBIeManager.Shared.Services
                                 }
                                 else
                                 {
-                                    // Get element position to distinguish fully inside vs center-based
-                                    var position = _levelAssignmentService.GetElementPositionInBand(
-                                        element,
-                                        config.BaseLevel,
-                                        config.TopLevel
-                                       );
+                                    // Process through consecutive ranges
+                                    assignedLevel = ProcessLevelRanges(element, sortedLevels);
 
-                                    if (position == LevelBandPosition.InBand || position == LevelBandPosition.InBandByCenter)
+                                    if (assignedLevel != null)
                                     {
-                                        // Determine the level name to use - custom name if provided, otherwise Revit level name
-                                        string levelNameToUse = !string.IsNullOrWhiteSpace(config.LevelMode.CustomLevelName)
-                                            ? config.LevelMode.CustomLevelName
-                                            : config.BaseLevel.Name;
+                                        // Get custom name if configured
+                                        string levelNameToUse = GetLevelName(assignedLevel, config.LevelMode);
 
                                         // Fill all selected parameters with the level name
                                         foreach (var paramName in selectedParameters)
@@ -430,22 +504,18 @@ namespace COBIeManager.Shared.Services
 
                                         totalSucessElements.Add(element.Id);
 
-                                        // Log success with distinct message for center-based matches
-                                        if (selectedParameters.Count > 0)
-                                        {
-                                            string logMessage = position == LevelBandPosition.InBandByCenter
-                                                ? $"Filled {selectedParameters.Count} level parameters ({SkipReasons.InBandByCenter})"
+                                        // Determine if this is an edge case
+                                        string logMessage = assignedLevel.Id == sortedLevels.First().Id
+                                            ? $"Filled {selectedParameters.Count} level parameters (lowest level)"
+                                            : assignedLevel.Id == sortedLevels.Last().Id
+                                                ? $"Filled {selectedParameters.Count} level parameters (highest level)"
                                                 : $"Filled {selectedParameters.Count} level parameters";
-                                            processingLogger.LogSuccess(element.Id, element.Category?.Name, logMessage);
-                                        }
+
+                                        processingLogger.LogSuccess(element.Id, element.Category?.Name, logMessage);
                                     }
                                     else
                                     {
-                                        // Element is outside level band
-                                        var skipReason = position == LevelBandPosition.BelowBand
-                                            ? SkipReasons.BelowBand
-                                            : SkipReasons.AboveBand;
-                                        processingLogger.LogSkip(element.Id, element.Category?.Name, skipReason);
+                                        processingLogger.LogSkip(element.Id, element.Category?.Name, SkipReasons.OutsideAllRanges);
                                     }
                                 }
                             }                           
@@ -521,6 +591,69 @@ namespace COBIeManager.Shared.Services
             }
 
             return allElements;
+        }
+
+        /// <summary>
+        /// Processes an element through consecutive level ranges to determine which level it should be assigned to.
+        /// Elements in range [Ln, Ln+1] are assigned to Ln (the lower level).
+        /// Elements below the lowest level are assigned to the lowest level.
+        /// Elements above the highest level are assigned to the highest level.
+        /// </summary>
+        /// <param name="element">The element to process</param>
+        /// <param name="sortedLevels">Levels sorted by elevation (ascending)</param>
+        /// <returns>The level to assign the element to, or null if cannot determine</returns>
+        private Level ProcessLevelRanges(Element element, IList<Level> sortedLevels)
+        {
+            if (element == null || sortedLevels == null || sortedLevels.Count < 2)
+                return null;
+
+            // Check each consecutive range
+            for (int i = 0; i < sortedLevels.Count - 1; i++)
+            {
+                var lowerLevel = sortedLevels[i];
+                var upperLevel = sortedLevels[i + 1];
+
+                var position = _levelAssignmentService.GetElementPositionInBand(
+                    element,
+                    lowerLevel,
+                    upperLevel);
+
+                if (position == LevelBandPosition.InBand || position == LevelBandPosition.InBandByCenter)
+                {
+                    // Element is in this range, assign to lower level
+                    return lowerLevel;
+                }
+                else if (position == LevelBandPosition.BelowBand && i == 0)
+                {
+                    // Element is below the lowest level
+                    return sortedLevels.First();
+                }
+            }
+
+            // If we get here, element is above the highest level
+            return sortedLevels.Last();
+        }
+
+        /// <summary>
+        /// Gets the level name to use, considering custom level names if configured.
+        /// </summary>
+        /// <param name="level">The level to get the name for</param>
+        /// <param name="config">The level mode configuration</param>
+        /// <returns>The level name to use</returns>
+        private string GetLevelName(Level level, LevelModeConfig config)
+        {
+            if (level == null || config == null)
+                return string.Empty;
+
+            // Check if there's a custom name configured for this level
+            if (config.CustomLevelNames != null && config.CustomLevelNames.TryGetValue(level.Id, out var customName))
+            {
+                if (!string.IsNullOrWhiteSpace(customName))
+                    return customName;
+            }
+
+            // Fall back to Revit level name
+            return level.Name;
         }
     }
 }

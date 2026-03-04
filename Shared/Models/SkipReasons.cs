@@ -10,6 +10,7 @@ namespace COBIeManager.Shared.Models
         public const string BelowBand = "Position: BelowBand";
         public const string AboveBand = "Position: AboveBand";
         public const string NoNearestLevel = "No nearest level found";
+        public const string OutsideAllRanges = "Position: Outside all level ranges";
 
         // Level assignment success reasons
         public const string InBandByCenter = "Center point within level band";
