@@ -22,6 +22,36 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
+        /// Gets all levels from the specified document
+        /// </summary>
+        /// <param name="document">The Revit document to get levels from</param>
+        /// <returns>List of levels sorted by elevation</returns>
+        public IList<Level> GetLevels(Document document)
+        {
+            if (document == null)
+                throw new ArgumentNullException(nameof(document));
+
+            try
+            {
+                var levelCollector = new FilteredElementCollector(document)
+                    .OfClass(typeof(Level));
+
+                var levels = levelCollector
+                    .OrderBy(l => ((Level)l).Elevation)
+                    .Cast<Level>()
+                    .ToList();
+
+                _logger.Info($"Found {levels.Count} levels in document");
+                return levels;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Error getting levels: {ex.Message}");
+                return new List<Level>();
+            }
+        }
+
+        /// <summary>
         /// Assigns elements to a level range based on bounding box intersection
         /// </summary>
         /// <param name="elements">Elements to process</param>

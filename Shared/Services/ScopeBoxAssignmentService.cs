@@ -29,6 +29,16 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public IList<Element> GetScopeBoxes(Document document)
         {
+            return GetScopeBoxesFromDocument(document);
+        }
+
+        /// <summary>
+        /// Gets all available scope boxes in the specified document (for linked document support)
+        /// </summary>
+        /// <param name="document">The Revit document to get scope boxes from</param>
+        /// <returns>List of scope boxes sorted by name</returns>
+        public IList<Element> GetScopeBoxesFromDocument(Document document)
+        {
             if (document == null)
                 throw new ArgumentNullException(nameof(document));
 
@@ -87,6 +97,15 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public bool IsElementInScopeBox(Element element, BoundingBoxXYZ scopeBoxBoundingBox, double tolerance = 0.0)
         {
+            return IsElementInScopeBox(element, scopeBoxBoundingBox, tolerance, null);
+        }
+
+        /// <summary>
+        /// Checks if an element is contained within a scope box's bounding box
+        /// with optional coordinate transformation for linked documents
+        /// </summary>
+        public bool IsElementInScopeBox(Element element, BoundingBoxXYZ scopeBoxBoundingBox, double tolerance, Transform transform)
+        {
             if (element == null || scopeBoxBoundingBox == null)
                 return false;
 
@@ -100,6 +119,14 @@ namespace COBIeManager.Shared.Services
                     // Some elements like line-based elements might not have a bounding box
                     // Try to get their curve or location
                     return false;
+                }
+
+                // Transform element bounding box to source document space if transform is provided
+                if (transform != null)
+                {
+                    elementBbox = new BoundingBoxXYZ();
+                    elementBbox.Min = transform.OfPoint(element.get_BoundingBox(null).Min);
+                    elementBbox.Max = transform.OfPoint(element.get_BoundingBox(null).Max);
                 }
 
                 // Apply tolerance to the scope box bounds
@@ -155,9 +182,29 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public IDictionary<Element, string> FindElementsInScopeBoxes(Document document, FillConfiguration config)
         {
+            return FindElementsInScopeBoxes(document, document, config, null);
+        }
+
+        /// <summary>
+        /// Finds all elements within the selected scope box bounds with linked document support.
+        /// Returns a dictionary mapping elements to their assigned scope box name.
+        /// Scope boxes are sorted by area (largest to smallest) to handle nesting properly.
+        /// Smaller (nested) scope boxes will override larger ones for elements they contain.
+        /// </summary>
+        /// <param name="targetDocument">Document containing elements to fill parameters on</param>
+        /// <param name="sourceDocument">Document containing scope boxes (may be a linked document)</param>
+        /// <param name="config">Fill configuration with scope box settings</param>
+        /// <param name="coordinateTransform">Transform from target to source document coordinates</param>
+        /// <returns>Dictionary mapping elements to their assigned scope box name</returns>
+        public IDictionary<Element, string> FindElementsInScopeBoxes(
+            Document targetDocument,
+            Document sourceDocument,
+            FillConfiguration config,
+            Transform coordinateTransform)
+        {
             var result = new Dictionary<Element, string>();
 
-            if (document == null || config?.ScopeBoxMode == null)
+            if (targetDocument == null || sourceDocument == null || config?.ScopeBoxMode == null)
                 return result;
 
             try
@@ -181,13 +228,13 @@ namespace COBIeManager.Shared.Services
                     return result;
                 }
 
-                // Get all elements from selected categories once
+                // Get all elements from selected categories once (from target document)
                 var allElements = new List<Element>();
                 foreach (var category in selectedCategories)
                 {
                     try
                     {
-                        var collector = new FilteredElementCollector(document)
+                        var collector = new FilteredElementCollector(targetDocument)
                             .OfCategory(category)
                             .WhereElementIsNotElementType()
                             .WhereElementIsViewIndependent();
@@ -200,11 +247,11 @@ namespace COBIeManager.Shared.Services
                     }
                 }
 
-                // Collect scope box elements with their bounding boxes and areas
+                // Collect scope box elements with their bounding boxes and areas (from source document)
                 var scopeBoxesWithArea = new List<(Element scopeBox, BoundingBoxXYZ bbox, double area)>();
                 foreach (var scopeBoxId in scopeBoxIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
+                    var scopeBox = sourceDocument.GetElement(scopeBoxId);
                     if (scopeBox == null)
                     {
                         _logger.Warn($"Scope box with ID {scopeBoxId.IntegerValue} not found");
@@ -233,15 +280,21 @@ namespace COBIeManager.Shared.Services
                 // Process each scope box in sorted order
                 foreach (var (scopeBox, boundingBox, _) in scopeBoxesWithArea)
                 {
-                    // Get the fill value (scope box name)
+                    // Get the fill value (scope box name or custom name)
                     var fillValue = scopeBox.Name;
+                    if (config.ScopeBoxMode.CustomScopeBoxNames != null &&
+                        config.ScopeBoxMode.CustomScopeBoxNames.TryGetValue(scopeBox.Id, out var customName) &&
+                        !string.IsNullOrWhiteSpace(customName))
+                    {
+                        fillValue = customName;
+                    }
 
                     // Find elements within this scope box
                     // Note: We allow override - smaller boxes can reassign elements from larger boxes
                     int elementsInThisBox = 0;
                     foreach (var element in allElements)
                     {
-                        if (IsElementInScopeBox(element, boundingBox, tolerance))
+                        if (IsElementInScopeBox(element, boundingBox, tolerance, coordinateTransform))
                         {
                             // Always assign/reassign - smaller boxes override larger ones
                             result[element] = fillValue;
@@ -281,6 +334,17 @@ namespace COBIeManager.Shared.Services
                 return summary;
             }
 
+            // Get source document and transform for linked document support
+            Document sourceDoc = document;
+            Transform coordinateTransform = null;
+            if (config.General?.SelectedLinkedDocument != null &&
+                !config.General.SelectedLinkedDocument.IsCurrentDocument)
+            {
+                sourceDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+                coordinateTransform = config.General.SelectedLinkedDocument.GetInverseTransform();
+                _logger.Info($"Using linked document for scope boxes: {sourceDoc.Title}");
+            }
+
             try
             {
                 progressAction?.Invoke(0, "Getting scope box information...");
@@ -299,7 +363,7 @@ namespace COBIeManager.Shared.Services
                 var scopeBoxNames = new List<string>();
                 foreach (var scopeBoxId in scopeBoxIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
+                    var scopeBox = sourceDoc.GetElement(scopeBoxId);
                     if (scopeBox != null)
                     {
                         scopeBoxNames.Add(scopeBox.Name);
@@ -312,7 +376,7 @@ namespace COBIeManager.Shared.Services
                 progressAction?.Invoke(10, $"Finding elements in {scopeBoxIds.Count} scope box(es)...");
 
                 // Find elements within the scope boxes
-                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, config);
+                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, sourceDoc, config, coordinateTransform);
                 summary.ElementsFound = elementsInScopeBoxes.Count;
 
                 // Get parameters to fill
@@ -402,6 +466,16 @@ namespace COBIeManager.Shared.Services
             {
                 progressAction?.Invoke(0, "Getting scope box information...");
 
+                // Get source document and transform for linked document support
+                Document sourceDoc = document;
+                Transform coordinateTransform = null;
+                if (config.General?.SelectedLinkedDocument != null &&
+                    !config.General.SelectedLinkedDocument.IsCurrentDocument)
+                {
+                    sourceDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+                    coordinateTransform = config.General.SelectedLinkedDocument.GetInverseTransform();
+                }
+
                 // Get the selected scope boxes
                 var scopeBoxIds = config.ScopeBoxMode.SelectedScopeBoxIds;
                 if (scopeBoxIds == null || scopeBoxIds.Count == 0)
@@ -416,7 +490,7 @@ namespace COBIeManager.Shared.Services
                 var scopeBoxNames = new List<string>();
                 foreach (var scopeBoxId in scopeBoxIds)
                 {
-                    var scopeBox = document.GetElement(scopeBoxId);
+                    var scopeBox = sourceDoc.GetElement(scopeBoxId);
                     if (scopeBox != null)
                     {
                         scopeBoxNames.Add(scopeBox.Name);
@@ -429,7 +503,7 @@ namespace COBIeManager.Shared.Services
                 progressAction?.Invoke(10, $"Finding elements in {scopeBoxIds.Count} scope box(es)...");
 
                 // Find elements within the scope boxes
-                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, config);
+                var elementsInScopeBoxes = FindElementsInScopeBoxes(document, sourceDoc, config, coordinateTransform);
                 summary.ElementsFound = elementsInScopeBoxes.Count;
 
                 // Get parameters to fill
@@ -532,7 +606,7 @@ namespace COBIeManager.Shared.Services
         [Obsolete("Use FindElementsInScopeBoxes instead")]
         public IDictionary<Element, string> FindElementsInScopeBox(Document document, FillConfiguration config)
         {
-            return FindElementsInScopeBoxes(document, config);
+            return FindElementsInScopeBoxes(document, document, config, null);
         }
     }
 }

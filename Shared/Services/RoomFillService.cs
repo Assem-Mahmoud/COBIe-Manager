@@ -18,13 +18,32 @@ namespace COBIeManager.Shared.Services
     {
         private readonly ILogger _logger;
         private readonly IRoomAssignmentService _roomAssignmentService;
+        private readonly ILinkedDocumentService _linkedDocumentService;
 
         public RoomFillService(
             ILogger logger,
-            IRoomAssignmentService roomAssignmentService)
+            IRoomAssignmentService roomAssignmentService,
+            ILinkedDocumentService linkedDocumentService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _roomAssignmentService = roomAssignmentService ?? throw new ArgumentNullException(nameof(roomAssignmentService));
+            _linkedDocumentService = linkedDocumentService ?? throw new ArgumentNullException(nameof(linkedDocumentService));
+        }
+
+        /// <summary>
+        /// Gets the source document for room queries based on selected linked document
+        /// </summary>
+        private (Document sourceDoc, Transform transform) GetSourceDocumentAndTransform(Document hostDocument, FillConfiguration config)
+        {
+            if (config?.General?.SelectedLinkedDocument == null ||
+                config.General.SelectedLinkedDocument.IsCurrentDocument)
+            {
+                return (hostDocument, null);
+            }
+
+            var linkedDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+            var transform = config.General.SelectedLinkedDocument.GetInverseTransform();
+            return (linkedDoc, transform);
         }
 
         /// <summary>
@@ -70,14 +89,24 @@ namespace COBIeManager.Shared.Services
                 return summary;
             }
 
+            // Get source document (may be linked)
+            var (sourceDoc, transform) = GetSourceDocumentAndTransform(document, config);
+            bool usingLinkedDocument = !document.Equals(sourceDoc);
+
+            if (usingLinkedDocument)
+            {
+                _logger.Info($"Using linked document for room detection: {sourceDoc.Title}");
+            }
+
             // Collect elements
             var elements = CollectElements(document, selectedCategories, summary);
 
-            // Check if Walls category is selected - if so, also collect room boundary walls for preview
+            // Check if Walls category is selected - if so, also collect room boundary walls
+            // The method now handles both current document (boundary segments) and linked documents (spatial matching)
             bool wallsCategorySelected = selectedCategories.Contains(BuiltInCategory.OST_Walls);
             if (wallsCategorySelected)
             {
-                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, elements, summary);
+                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, sourceDoc, transform, elements, summary);
                 elements = elements.Union(roomBoundaryWalls).ToList();
                 _logger.Info($"Preview: Added {roomBoundaryWalls.Count} room boundary walls to processing list");
             }
@@ -118,8 +147,9 @@ namespace COBIeManager.Shared.Services
                 }
                 else
                 {
-                    // For other elements, use the standard room detection
-                    room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                    // For other elements, use the standard room detection with linked document support
+                    // sourceDoc and transform are already declared in outer scope
+                    room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform);
                 }
 
                 if (room != null)
@@ -235,15 +265,25 @@ namespace COBIeManager.Shared.Services
             var paramDetails = allSelectedParameters.Select(p => $"'{p.ParameterName}' (Mode={p.ApplicableMode})").ToList();
             _logger.Info($"Filling {allSelectedParameters.Count} {fillType} parameters: {string.Join(", ", paramDetails)}");
 
+            // Get source document (may be linked)
+            var (sourceDoc, transform) = GetSourceDocumentAndTransform(document, config);
+            bool usingLinkedDocument = !document.Equals(sourceDoc);
+
+            if (usingLinkedDocument)
+            {
+                _logger.Info($"Using linked document for room detection: {sourceDoc.Title}");
+            }
+
             // Collect elements
             var previewSummary = new RoomFillPreviewSummary();
             var elements = CollectElements(document, selectedCategories, previewSummary);
 
             // Check if Walls category is selected - if so, also collect room boundary walls
+            // The method now handles both current document (boundary segments) and linked documents (spatial matching)
             bool wallsCategorySelected = selectedCategories.Contains(BuiltInCategory.OST_Walls);
             if (wallsCategorySelected)
             {
-                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, elements, previewSummary);
+                var roomBoundaryWalls = CollectRoomBoundaryWalls(document, sourceDoc, transform, elements, previewSummary);
                 elements = elements.Union(roomBoundaryWalls).ToList();
                 _logger.Info($"Added {roomBoundaryWalls.Count} room boundary walls to processing list");
             }
@@ -301,8 +341,9 @@ namespace COBIeManager.Shared.Services
                         }
                         else
                         {
-                            // For other elements, use the standard room detection
-                            room = _roomAssignmentService.GetRoomForElement(element, RoomDetectionMethod.PointInRoom);
+                            // For other elements, use the standard room detection with linked document support
+                            // sourceDoc and transform are already declared in outer scope
+                            room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform);
                         }
 
                         if (room != null)
@@ -433,12 +474,16 @@ namespace COBIeManager.Shared.Services
         /// <summary>
         /// Collects walls that are room boundaries and associates them with their adjacent rooms
         /// </summary>
-        /// <param name="document">Revit document</param>
+        /// <param name="hostDocument">The host/target document containing walls</param>
+        /// <param name="sourceDocument">The source document containing rooms (may be linked)</param>
+        /// <param name="coordinateTransform">Transform from host to source document (for linked docs)</param>
         /// <param name="currentElements">Currently collected elements (to filter out duplicates)</param>
         /// <param name="previewSummary">Preview summary to populate with empty categories</param>
         /// <returns>List of room boundary walls</returns>
         private IList<Element> CollectRoomBoundaryWalls(
-            Document document,
+            Document hostDocument,
+            Document sourceDocument,
+            Transform coordinateTransform,
             IList<Element> currentElements,
             RoomFillPreviewSummary previewSummary)
         {
@@ -447,73 +492,129 @@ namespace COBIeManager.Shared.Services
 
             _wallRoomAssociations.Clear();
 
+            bool usingLinkedDocument = !hostDocument.Equals(sourceDocument);
+
             try
             {
-                // Collect all rooms in the document
-                var rooms = new FilteredElementCollector(document)
+                // Collect all rooms in the source document (may be linked)
+                var rooms = new FilteredElementCollector(sourceDocument)
                     .WhereElementIsNotElementType()
                     .OfCategory(BuiltInCategory.OST_Rooms)
                     .OfType<Room>()
                     .Where(r => r.Area > 0 && r.Location != null)
                     .ToList();
 
-                _logger.Info($"Found {rooms.Count} rooms for boundary wall detection");
+                if (usingLinkedDocument)
+                {
+                    _logger.Info($"Found {rooms.Count} rooms in linked document '{sourceDocument.Title}' for spatial matching");
+                }
+                else
+                {
+                    _logger.Info($"Found {rooms.Count} rooms in current document for boundary wall detection");
+                }
 
-                // For each room, get its boundary segments and find associated walls
+                // Collect all walls from the host document for spatial matching
+                IList<Element> hostWalls = null;
+                if (usingLinkedDocument)
+                {
+                    hostWalls = new FilteredElementCollector(hostDocument)
+                        .OfCategory(BuiltInCategory.OST_Walls)
+                        .WhereElementIsNotElementType()
+                        .WhereElementIsViewIndependent()
+                        .ToElements();
+                    _logger.Info($"Collected {hostWalls.Count} walls from host document for spatial matching");
+                }
+
+                // Process each room
                 foreach (var room in rooms)
                 {
                     try
                     {
-                        // Get boundary segments for the room at all levels
-                        var boundarySegments = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
-
-                        foreach (var boundarySegmentList in boundarySegments)
+                        if (usingLinkedDocument)
                         {
-                            foreach (var segment in boundarySegmentList)
+                            // SPATIAL MATCHING for linked documents
+                            // Get room bounding box and find host walls within it
+                            var roomBbox = room.get_BoundingBox(null);
+                            if (roomBbox != null && hostWalls != null)
                             {
-                                // Try to get the element associated with this boundary segment
-                                Element element = null;
-                                try
+                                // Transform bounding box to host document space
+                                BoundingBoxXYZ hostBbox = TransformBoundingBoxToHostSpace(roomBbox, coordinateTransform);
+
+                                // Find walls within this room's bounding box
+                                var wallsInRoom = FindElementsInBoundingBox(hostWalls, hostBbox);
+
+                                foreach (var wall in wallsInRoom)
                                 {
-                                    // Get the element through the ElementId property (Revit 2024+)
-                                    #if REVIT_2024 || REVIT_2025 || REVIT_2026
-                                    element = document.GetElement(segment.ElementId);
-                                    #else
-                                    // For older Revit versions, try GetElement method if available
+                                    int wallId = wall.Id.IntegerValue;
+
+                                    // Add to boundary walls list if not already processed
+                                    if (!currentElementIds.Contains(wallId) && !boundaryWalls.Any(w => w.Id.IntegerValue == wallId))
+                                    {
+                                        boundaryWalls.Add(wall);
+                                    }
+
+                                    // Store wall-room association (prefer first room found)
+                                    if (!_wallRoomAssociations.ContainsKey(wallId))
+                                    {
+                                        _wallRoomAssociations[wallId] = room;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // BOUNDARY SEGMENT approach for current document
+                            // Get boundary segments for the room at all levels
+                            var boundarySegments = room.GetBoundarySegments(new SpatialElementBoundaryOptions());
+
+                            foreach (var boundarySegmentList in boundarySegments)
+                            {
+                                foreach (var segment in boundarySegmentList)
+                                {
+                                    // Try to get the element associated with this boundary segment
+                                    Element element = null;
                                     try
                                     {
-                                        element = segment.GetElement();
+                                        // Get the element through the ElementId property (Revit 2024+)
+                                        #if REVIT_2024 || REVIT_2025 || REVIT_2026
+                                        element = sourceDocument.GetElement(segment.ElementId);
+                                        #else
+                                        // For older Revit versions, try GetElement method if available
+                                        try
+                                        {
+                                            element = segment.GetElement();
+                                        }
+                                        catch
+                                        {
+                                            // Fallback: try getting element through ElementId
+                                            element = sourceDocument.GetElement(segment.ElementId);
+                                        }
+                                        #endif
                                     }
                                     catch
                                     {
-                                        // Fallback: try getting element through ElementId
-                                        element = document.GetElement(segment.ElementId);
+                                        // If getting element fails, skip this segment
+                                        continue;
                                     }
-                                    #endif
-                                }
-                                catch
-                                {
-                                    // If getting element fails, skip this segment
-                                    continue;
-                                }
 
-                                if (element != null && element.Category != null)
-                                {
-                                    // Check if the boundary element is a wall
-                                    if (element.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Walls)
+                                    if (element != null && element.Category != null)
                                     {
-                                        int wallId = element.Id.IntegerValue;
-
-                                        // Add to boundary walls list if not already processed
-                                        if (!currentElementIds.Contains(wallId) && !boundaryWalls.Any(w => w.Id.IntegerValue == wallId))
+                                        // Check if the boundary element is a wall
+                                        if (element.Category.Id.IntegerValue == (int)BuiltInCategory.OST_Walls)
                                         {
-                                            boundaryWalls.Add(element);
-                                        }
+                                            int wallId = element.Id.IntegerValue;
 
-                                        // Store wall-room association (prefer first room found)
-                                        if (!_wallRoomAssociations.ContainsKey(wallId))
-                                        {
-                                            _wallRoomAssociations[wallId] = room;
+                                            // Add to boundary walls list if not already processed
+                                            if (!currentElementIds.Contains(wallId) && !boundaryWalls.Any(w => w.Id.IntegerValue == wallId))
+                                            {
+                                                boundaryWalls.Add(element);
+                                            }
+
+                                            // Store wall-room association (prefer first room found)
+                                            if (!_wallRoomAssociations.ContainsKey(wallId))
+                                            {
+                                                _wallRoomAssociations[wallId] = room;
+                                            }
                                         }
                                     }
                                 }
@@ -522,7 +623,7 @@ namespace COBIeManager.Shared.Services
                     }
                     catch (Exception ex)
                     {
-                        _logger.Debug($"Error getting boundaries for room {room.Id}: {ex.Message}");
+                        _logger.Debug($"Error processing room {room.Id}: {ex.Message}");
                     }
                 }
 
@@ -534,6 +635,105 @@ namespace COBIeManager.Shared.Services
             }
 
             return boundaryWalls;
+        }
+
+        /// <summary>
+        /// Transforms a bounding box from linked document space to host document space
+        /// </summary>
+        private BoundingBoxXYZ TransformBoundingBoxToHostSpace(BoundingBoxXYZ linkedBbox, Transform inverseTransform)
+        {
+            if (linkedBbox == null)
+                return null;
+
+            if (inverseTransform == null)
+                return linkedBbox;
+
+            try
+            {
+                // The inverseTransform converts from host to linked, so we need the inverse of that
+                // to convert from linked to host
+                var hostTransform = inverseTransform.Inverse;
+
+                var hostBbox = new BoundingBoxXYZ
+                {
+                    Min = hostTransform.OfPoint(linkedBbox.Min),
+                    Max = hostTransform.OfPoint(linkedBbox.Max),
+                    Transform = Transform.Identity
+                };
+
+                // Ensure Min is actually the minimum and Max is the maximum
+                if (hostBbox.Min.X > hostBbox.Max.X)
+                {
+                    var temp = hostBbox.Min.X;
+                    hostBbox.Min = new XYZ(hostBbox.Max.X, hostBbox.Min.Y, hostBbox.Min.Z);
+                    hostBbox.Max = new XYZ(temp, hostBbox.Max.Y, hostBbox.Max.Z);
+                }
+                if (hostBbox.Min.Y > hostBbox.Max.Y)
+                {
+                    var temp = hostBbox.Min.Y;
+                    hostBbox.Min = new XYZ(hostBbox.Min.X, hostBbox.Max.Y, hostBbox.Min.Z);
+                    hostBbox.Max = new XYZ(hostBbox.Max.X, temp, hostBbox.Max.Z);
+                }
+                if (hostBbox.Min.Z > hostBbox.Max.Z)
+                {
+                    var temp = hostBbox.Min.Z;
+                    hostBbox.Min = new XYZ(hostBbox.Min.X, hostBbox.Min.Y, hostBbox.Max.Z);
+                    hostBbox.Max = new XYZ(hostBbox.Max.X, hostBbox.Max.Y, temp);
+                }
+
+                return hostBbox;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Error transforming bounding box: {ex.Message}");
+                return linkedBbox;
+            }
+        }
+
+        /// <summary>
+        /// Finds elements that are within or intersect a bounding box
+        /// </summary>
+        private IList<Element> FindElementsInBoundingBox(IList<Element> elements, BoundingBoxXYZ bbox)
+        {
+            var result = new List<Element>();
+
+            if (elements == null || bbox == null)
+                return result;
+
+            double tolerance = 0.0001;
+
+            foreach (var element in elements)
+            {
+                try
+                {
+                    var elementBbox = element.get_BoundingBox(null);
+                    if (elementBbox == null)
+                        continue;
+
+                    if (BoundingBoxesIntersect(elementBbox, bbox, tolerance))
+                    {
+                        result.Add(element);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Error checking element {element.Id}: {ex.Message}");
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Checks if two bounding boxes intersect
+        /// </summary>
+        private bool BoundingBoxesIntersect(BoundingBoxXYZ box1, BoundingBoxXYZ box2, double tolerance)
+        {
+            bool xIntersect = box1.Max.X >= box2.Min.X - tolerance && box1.Min.X <= box2.Max.X + tolerance;
+            bool yIntersect = box1.Max.Y >= box2.Min.Y - tolerance && box1.Min.Y <= box2.Max.Y + tolerance;
+            bool zIntersect = box1.Max.Z >= box2.Min.Z - tolerance && box1.Min.Z <= box2.Max.Z + tolerance;
+
+            return xIntersect && yIntersect && zIntersect;
         }
 
         /// <summary>

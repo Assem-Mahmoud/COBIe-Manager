@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Autodesk.Revit.DB;
+using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Logging;
 using COBIeManager.Shared.Models;
@@ -12,38 +13,65 @@ namespace COBIeManager.Shared.Services
     /// <summary>
     /// Service for filling ACG-BOX-ID parameters from Model GroupType names.
     /// Processes ALL instances of each group type.
+    /// Supports linked documents as group data source.
     /// </summary>
     public class BoxIdFillService : IBoxIdFillService
     {
         private readonly ILogger _logger;
+        private readonly ILinkedDocumentService _linkService;
 
-        public BoxIdFillService(ILogger logger)
+        public BoxIdFillService(ILogger logger, ILinkedDocumentService linkService)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _linkService = linkService ?? throw new ArgumentNullException(nameof(linkService));
+        }
+
+        /// <summary>
+        /// Gets the source document and transform for group queries.
+        /// Returns the linked document if selected, otherwise the host document.
+        /// </summary>
+        private (Document sourceDoc, Transform transform) GetSourceDocumentAndTransform(Document hostDocument, FillConfiguration config)
+        {
+            if (config?.General?.SelectedLinkedDocument == null ||
+                config.General.SelectedLinkedDocument.IsCurrentDocument)
+            {
+                return (hostDocument, null);
+            }
+
+            var linkedDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+            var transform = config.General.SelectedLinkedDocument.GetInverseTransform();
+            return (linkedDoc, transform);
         }
 
         /// <summary>
         /// Analyzes groups and returns preview summary without modifying document.
         /// Counts all instances across all group types.
         /// </summary>
-        public BoxIdFillPreviewSummary PreviewFill(Document document, string parameterName, bool overwriteExisting)
+        public BoxIdFillPreviewSummary PreviewFill(Document document, FillConfiguration config)
         {
             if (document == null)
             {
                 throw new ArgumentNullException(nameof(document));
             }
 
-            if (string.IsNullOrWhiteSpace(parameterName))
+            if (config == null)
             {
-                throw new ArgumentException("Parameter name cannot be empty", nameof(parameterName));
+                throw new ArgumentNullException(nameof(config));
             }
 
             _logger.Info("Starting box ID fill preview (GroupType-based)");
 
+            // Get source document (may be linked)
+            var (sourceDoc, transform) = GetSourceDocumentAndTransform(document, config);
+            if (!sourceDoc.Equals(document))
+            {
+                _logger.Info($"Using linked document for groups: {sourceDoc.Title}");
+            }
+
             var summary = new BoxIdFillPreviewSummary();
 
-            // Collect all model groups
-            var groups = CollectModelGroups(document);
+            // Collect all model groups from source document
+            var groups = CollectModelGroups(sourceDoc);
 
             if (!groups.Any())
             {
@@ -107,9 +135,7 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public BoxIdFillSummary ExecuteFill(
             Document document,
-            string parameterName,
-            bool overwriteExisting,
-            bool includeGroupElement,
+            FillConfiguration config,
             Action<int, string> progressAction = null)
         {
             if (document == null)
@@ -117,18 +143,36 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(document));
             }
 
-            if (string.IsNullOrWhiteSpace(parameterName))
+            if (config == null)
             {
-                throw new ArgumentException("Parameter name cannot be empty", nameof(parameterName));
+                throw new ArgumentNullException(nameof(config));
             }
 
+            // Get parameter name from config
+            var selectedParams = config.GetGroupModeParameters();
+            if (selectedParams.Count == 0)
+            {
+                _logger.Warn("No parameters mapped to Group mode");
+                return new BoxIdFillSummary();
+            }
+
+            string parameterName = selectedParams[0];
+            bool overwriteExisting = config.OverwriteExisting;
+
             _logger.Info($"Starting box ID fill operation (parameter: {parameterName}, overwrite: {overwriteExisting})");
+
+            // Get source document (may be linked)
+            var (sourceDoc, transform) = GetSourceDocumentAndTransform(document, config);
+            if (!sourceDoc.Equals(document))
+            {
+                _logger.Info($"Using linked document for groups: {sourceDoc.Title}");
+            }
 
             var stopwatch = Stopwatch.StartNew();
             var summary = new BoxIdFillSummary();
 
-            // Collect all model groups
-            var groups = CollectModelGroups(document);
+            // Collect all model groups from source document
+            var groups = CollectModelGroups(sourceDoc);
 
             if (!groups.Any())
             {
@@ -146,8 +190,22 @@ namespace COBIeManager.Shared.Services
             summary.TotalGroupsScanned = groups.Count;
             _logger.Info($"Processing {groups.Count} model group instances ({groupsByType.Count} unique types)");
 
+            // Determine if we're using a linked document
+            bool usingLinkedDocument = !sourceDoc.Equals(document);
+
             // Create failure preprocessor for group-related warnings
             var failurePreprocessor = new GroupFailurePreprocessor(_logger);
+
+            // Get selected categories for filtering
+            var selectedCategories = config.GetSelectedCategories().ToList();
+
+            // Pre-collect elements from host document if using linked document (for spatial matching)
+            IList<Element> hostElements = null;
+            if (usingLinkedDocument && selectedCategories.Any())
+            {
+                hostElements = CollectElementsByCategories(document, selectedCategories);
+                _logger.Info($"Collected {hostElements.Count} elements from host document for spatial matching");
+            }
 
             // Use transaction with failure preprocessor
             using (var transaction = new Transaction(document, "Fill ACG-BOX-ID from GroupTypes"))
@@ -200,67 +258,118 @@ namespace COBIeManager.Shared.Services
                         {
                             processedInstances++;
 
-                            // Get members from this specific instance
-                            var memberIds = groupInstance.GetMemberIds();
-                            totalMembersProcessed += memberIds.Count;
-
-                            // Update each member of this specific group instance
-                            foreach (var memberId in memberIds)
+                            if (usingLinkedDocument)
                             {
-                                summary.TotalMembersScanned++;
-
-                                var member = document.GetElement(memberId);
-                                if (member == null)
+                                // For linked documents, use spatial matching
+                                var groupBbox = groupInstance.get_BoundingBox(null);
+                                if (groupBbox != null)
                                 {
-                                    _logger.Warn($"Member {memberId} not found in document");
-                                    continue;
-                                }
+                                    // Transform bounding box to host document space
+                                    BoundingBoxXYZ hostBbox = TransformBoundingBoxToHostSpace(groupBbox, transform);
 
-                                // Skip nested groups
-                                if (member is Group)
-                                {
-                                    summary.MembersSkippedNestedGroup++;
-                                    summary.RegisterSkippedElement(member.Id.IntegerValue, SkipReasons.NestedGroup);
-                                    _logger.Debug($"Skipping nested group {member.Id}");
-                                    continue;
-                                }
+                                    // Find elements within this group's bounding box
+                                    var elementsInGroup = FindElementsInBoundingBox(hostElements, hostBbox);
 
-                                // Try to set the parameter using GroupType.Name as value
-                                var result = TrySetParameter(member, parameterName, typeName, overwriteExisting);
+                                    _logger.Debug($"Group '{groupInstance.Name}' has spatial match with {elementsInGroup.Count} elements in host document");
 
-                                if (result.Success)
-                                {
-                                    summary.MembersUpdated++;
-                                }
-                                else if (result.Skipped)
-                                {
-                                    summary.RegisterSkippedElement(member.Id.IntegerValue, result.SkipReason);
-
-                                    switch (result.SkipReason)
+                                    foreach (var element in elementsInGroup)
                                     {
-                                        case SkipReasons.ParameterMissing:
-                                            summary.MembersSkippedParameterMissing++;
-                                            break;
-                                        case SkipReasons.ParameterReadOnly:
-                                            summary.MembersSkippedParameterReadOnly++;
-                                            break;
-                                        case SkipReasons.ValueExists:
-                                            summary.MembersSkippedValueExists++;
-                                            break;
-                                        case SkipReasons.NestedGroup:
+                                        summary.TotalMembersScanned++;
+
+                                        // Skip nested groups
+                                        if (element is Group)
+                                        {
                                             summary.MembersSkippedNestedGroup++;
-                                            break;
+                                            summary.RegisterSkippedElement(element.Id.IntegerValue, SkipReasons.NestedGroup);
+                                            continue;
+                                        }
+
+                                        // Try to set the parameter using GroupType.Name as value
+                                        var result = TrySetParameter(element, parameterName, typeName, overwriteExisting);
+
+                                        if (result.Success)
+                                        {
+                                            summary.MembersUpdated++;
+                                        }
+                                        else if (result.Skipped)
+                                        {
+                                            summary.RegisterSkippedElement(element.Id.IntegerValue, result.SkipReason);
+
+                                            switch (result.SkipReason)
+                                            {
+                                                case SkipReasons.ParameterMissing:
+                                                    summary.MembersSkippedParameterMissing++;
+                                                    break;
+                                                case SkipReasons.ParameterReadOnly:
+                                                    summary.MembersSkippedParameterReadOnly++;
+                                                    break;
+                                                case SkipReasons.ValueExists:
+                                                    summary.MembersSkippedValueExists++;
+                                                    break;
+                                                case SkipReasons.NestedGroup:
+                                                    summary.MembersSkippedNestedGroup++;
+                                                    break;
+                                            }
+                                        }
                                     }
+
+                                    totalMembersProcessed += elementsInGroup.Count;
                                 }
                             }
-
-                            // Optionally set parameter on the group element itself
-                            if (includeGroupElement)
+                            else
                             {
-                                var groupResult = TrySetParameter(groupInstance, parameterName, typeName, overwriteExisting);
-                                if (groupResult.Success)
+                                // For current document, use direct member access
+                                var memberIds = groupInstance.GetMemberIds();
+                                totalMembersProcessed += memberIds.Count;
+
+                                // Update each member of this specific group instance
+                                foreach (var memberId in memberIds)
                                 {
-                                    summary.GroupElementsUpdated++;
+                                    summary.TotalMembersScanned++;
+
+                                    var member = document.GetElement(memberId);
+                                    if (member == null)
+                                    {
+                                        _logger.Warn($"Member {memberId} not found in document");
+                                        continue;
+                                    }
+
+                                    // Skip nested groups
+                                    if (member is Group)
+                                    {
+                                        summary.MembersSkippedNestedGroup++;
+                                        summary.RegisterSkippedElement(member.Id.IntegerValue, SkipReasons.NestedGroup);
+                                        _logger.Debug($"Skipping nested group {member.Id}");
+                                        continue;
+                                    }
+
+                                    // Try to set the parameter using GroupType.Name as value
+                                    var result = TrySetParameter(member, parameterName, typeName, overwriteExisting);
+
+                                    if (result.Success)
+                                    {
+                                        summary.MembersUpdated++;
+                                    }
+                                    else if (result.Skipped)
+                                    {
+                                        summary.RegisterSkippedElement(member.Id.IntegerValue, result.SkipReason);
+
+                                        switch (result.SkipReason)
+                                        {
+                                            case SkipReasons.ParameterMissing:
+                                                summary.MembersSkippedParameterMissing++;
+                                                break;
+                                            case SkipReasons.ParameterReadOnly:
+                                                summary.MembersSkippedParameterReadOnly++;
+                                                break;
+                                            case SkipReasons.ValueExists:
+                                                summary.MembersSkippedValueExists++;
+                                                break;
+                                            case SkipReasons.NestedGroup:
+                                                summary.MembersSkippedNestedGroup++;
+                                                break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -292,6 +401,137 @@ namespace COBIeManager.Shared.Services
             }
 
             return summary;
+        }
+
+        /// <summary>
+        /// Collects elements from the host document by selected categories for spatial matching
+        /// </summary>
+        private IList<Element> CollectElementsByCategories(Document document, IList<BuiltInCategory> categories)
+        {
+            var elements = new List<Element>();
+
+            try
+            {
+                foreach (var category in categories)
+                {
+                    var collector = new FilteredElementCollector(document)
+                        .OfCategory(category)
+                        .WhereElementIsNotElementType()
+                        .WhereElementIsViewIndependent();
+
+                    elements.AddRange(collector.ToElements());
+                }
+
+                _logger.Debug($"Collected {elements.Count} elements from {categories.Count} categories");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Error collecting elements by category", ex);
+            }
+
+            return elements;
+        }
+
+        /// <summary>
+        /// Transforms a bounding box from linked document space to host document space
+        /// </summary>
+        private BoundingBoxXYZ TransformBoundingBoxToHostSpace(BoundingBoxXYZ linkedBbox, Transform inverseTransform)
+        {
+            if (linkedBbox == null)
+                return null;
+
+            if (inverseTransform == null)
+                return linkedBbox;
+
+            try
+            {
+                // The inverseTransform converts from host to linked, so we need the inverse of that
+                // to convert from linked to host
+                var hostTransform = inverseTransform.Inverse;
+
+                var hostBbox = new BoundingBoxXYZ
+                {
+                    Min = hostTransform.OfPoint(linkedBbox.Min),
+                    Max = hostTransform.OfPoint(linkedBbox.Max),
+                    Transform = Transform.Identity
+                };
+
+                // Ensure Min is actually the minimum and Max is the maximum
+                // (after transformation, the points might be swapped)
+                if (hostBbox.Min.X > hostBbox.Max.X)
+                {
+                    var temp = hostBbox.Min.X;
+                    hostBbox.Min = new XYZ(hostBbox.Max.X, hostBbox.Min.Y, hostBbox.Min.Z);
+                    hostBbox.Max = new XYZ(temp, hostBbox.Max.Y, hostBbox.Max.Z);
+                }
+                if (hostBbox.Min.Y > hostBbox.Max.Y)
+                {
+                    var temp = hostBbox.Min.Y;
+                    hostBbox.Min = new XYZ(hostBbox.Min.X, hostBbox.Max.Y, hostBbox.Min.Z);
+                    hostBbox.Max = new XYZ(hostBbox.Max.X, temp, hostBbox.Max.Z);
+                }
+                if (hostBbox.Min.Z > hostBbox.Max.Z)
+                {
+                    var temp = hostBbox.Min.Z;
+                    hostBbox.Min = new XYZ(hostBbox.Min.X, hostBbox.Min.Y, hostBbox.Max.Z);
+                    hostBbox.Max = new XYZ(hostBbox.Max.X, hostBbox.Max.Y, temp);
+                }
+
+                return hostBbox;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Error transforming bounding box: {ex.Message}");
+                return linkedBbox; // Return original if transformation fails
+            }
+        }
+
+        /// <summary>
+        /// Finds elements that are within or intersect a bounding box
+        /// </summary>
+        private IList<Element> FindElementsInBoundingBox(IList<Element> elements, BoundingBoxXYZ bbox)
+        {
+            var result = new List<Element>();
+
+            if (elements == null || bbox == null)
+                return result;
+
+            double tolerance = 0.0001; // Small tolerance for floating point comparison
+
+            foreach (var element in elements)
+            {
+                try
+                {
+                    var elementBbox = element.get_BoundingBox(null);
+                    if (elementBbox == null)
+                        continue;
+
+                    // Check if element bounding box intersects with the group bounding box
+                    if (BoundingBoxesIntersect(elementBbox, bbox, tolerance))
+                    {
+                        result.Add(element);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug($"Error checking element {element.Id}: {ex.Message}");
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Checks if two bounding boxes intersect
+        /// </summary>
+        private bool BoundingBoxesIntersect(BoundingBoxXYZ box1, BoundingBoxXYZ box2, double tolerance)
+        {
+            // Check for intersection in all three dimensions
+            bool xIntersect = box1.Max.X >= box2.Min.X - tolerance && box1.Min.X <= box2.Max.X + tolerance;
+            bool yIntersect = box1.Max.Y >= box2.Min.Y - tolerance && box1.Min.Y <= box2.Max.Y + tolerance;
+            bool zIntersect = box1.Max.Z >= box2.Min.Z - tolerance && box1.Min.Z <= box2.Max.Z + tolerance;
+
+            return xIntersect && yIntersect && zIntersect;
         }
 
         /// <summary>

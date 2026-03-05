@@ -30,6 +30,16 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public IList<Element> GetZones(Document document)
         {
+            return GetZonesFromDocument(document);
+        }
+
+        /// <summary>
+        /// Gets all available zones (scope boxes) from the specified document
+        /// </summary>
+        /// <param name="document">The Revit document to get zones from</param>
+        /// <returns>List of zones sorted by name</returns>
+        public IList<Element> GetZonesFromDocument(Document document)
+        {
             if (document == null)
                 throw new ArgumentNullException(nameof(document));
 
@@ -88,6 +98,15 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public bool IsElementInZone(Element element, BoundingBoxXYZ zoneBoundingBox)
         {
+            return IsElementInZone(element, zoneBoundingBox, null);
+        }
+
+        /// <summary>
+        /// Checks if an element is contained within a zone's bounding box
+        /// with optional coordinate transformation for linked documents
+        /// </summary>
+        public bool IsElementInZone(Element element, BoundingBoxXYZ zoneBoundingBox, Transform transform)
+        {
             if (element == null || zoneBoundingBox == null)
                 return false;
 
@@ -101,6 +120,14 @@ namespace COBIeManager.Shared.Services
                     // Some elements like line-based elements might not have a bounding box
                     // Try to get their curve or location
                     return false;
+                }
+
+                // Transform element bounding box to source document space if transform is provided
+                if (transform != null)
+                {
+                    elementBbox = new BoundingBoxXYZ();
+                    elementBbox.Min = transform.OfPoint(element.get_BoundingBox(null).Min);
+                    elementBbox.Max = transform.OfPoint(element.get_BoundingBox(null).Max);
                 }
 
                 // No tolerance - use exact zone bounds
@@ -149,9 +176,29 @@ namespace COBIeManager.Shared.Services
         /// </summary>
         public IDictionary<Element, string> FindElementsInZones(Document document, FillConfiguration config)
         {
+            return FindElementsInZones(document, document, config, null);
+        }
+
+        /// <summary>
+        /// Finds all elements within the selected zone bounds with linked document support.
+        /// Returns a dictionary mapping elements to their assigned zone name.
+        /// Zones (scope boxes) are sorted by area (largest to smallest) to handle nesting properly.
+        /// Smaller (nested) zones will override larger ones for elements they contain.
+        /// </summary>
+        /// <param name="targetDocument">Document containing elements to fill parameters on</param>
+        /// <param name="sourceDocument">Document containing zones (may be a linked document)</param>
+        /// <param name="config">Fill configuration with zone settings</param>
+        /// <param name="coordinateTransform">Transform from target to source document coordinates</param>
+        /// <returns>Dictionary mapping elements to their assigned zone name</returns>
+        public IDictionary<Element, string> FindElementsInZones(
+            Document targetDocument,
+            Document sourceDocument,
+            FillConfiguration config,
+            Transform coordinateTransform)
+        {
             var result = new Dictionary<Element, string>();
 
-            if (document == null || config?.ZoneMode == null)
+            if (targetDocument == null || sourceDocument == null || config?.ZoneMode == null)
                 return result;
 
             try
@@ -172,13 +219,13 @@ namespace COBIeManager.Shared.Services
                     return result;
                 }
 
-                // Get all elements from selected categories once
+                // Get all elements from selected categories once (from target document)
                 var allElements = new List<Element>();
                 foreach (var category in selectedCategories)
                 {
                     try
                     {
-                        var collector = new FilteredElementCollector(document)
+                        var collector = new FilteredElementCollector(targetDocument)
                             .OfCategory(category)
                             .WhereElementIsNotElementType()
                             .WhereElementIsViewIndependent();
@@ -191,11 +238,11 @@ namespace COBIeManager.Shared.Services
                     }
                 }
 
-                // Collect zone elements with their bounding boxes and areas
+                // Collect zone elements with their bounding boxes and areas (from source document)
                 var zonesWithArea = new List<(Element zone, BoundingBoxXYZ bbox, double area)>();
                 foreach (var zoneId in zoneIds)
                 {
-                    var zone = document.GetElement(zoneId);
+                    var zone = sourceDocument.GetElement(zoneId);
                     if (zone == null)
                     {
                         _logger.Warn($"Zone with ID {zoneId.IntegerValue} not found");
@@ -238,7 +285,7 @@ namespace COBIeManager.Shared.Services
                     int elementsInThisZone = 0;
                     foreach (var element in allElements)
                     {
-                        if (IsElementInZone(element, boundingBox))
+                        if (IsElementInZone(element, boundingBox, coordinateTransform))
                         {
                             // Always assign/reassign - smaller zones override larger ones
                             result[element] = fillValue;
@@ -282,6 +329,16 @@ namespace COBIeManager.Shared.Services
             {
                 progressAction?.Invoke(0, "Getting zone information...");
 
+                // Get source document and transform for linked document support
+                Document sourceDoc = document;
+                Transform coordinateTransform = null;
+                if (config.General?.SelectedLinkedDocument != null &&
+                    !config.General.SelectedLinkedDocument.IsCurrentDocument)
+                {
+                    sourceDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+                    coordinateTransform = config.General.SelectedLinkedDocument.GetInverseTransform();
+                }
+
                 // Get the selected zones
                 var zoneIds = config.ZoneMode.SelectedZoneIds;
                 if (zoneIds == null || zoneIds.Count == 0)
@@ -296,7 +353,7 @@ namespace COBIeManager.Shared.Services
                 var zoneNames = new List<string>();
                 foreach (var zoneId in zoneIds)
                 {
-                    var zone = document.GetElement(zoneId);
+                    var zone = sourceDoc.GetElement(zoneId);
                     if (zone != null)
                     {
                         zoneNames.Add(zone.Name);
@@ -309,7 +366,7 @@ namespace COBIeManager.Shared.Services
                 progressAction?.Invoke(10, $"Finding elements in {zoneIds.Count} zone(s)...");
 
                 // Find elements within the zones
-                var elementsInZones = FindElementsInZones(document, config);
+                var elementsInZones = FindElementsInZones(document, sourceDoc, config, coordinateTransform);
                 summary.ElementsFound = elementsInZones.Count;
 
                 // Get parameters to fill
@@ -399,6 +456,16 @@ namespace COBIeManager.Shared.Services
             {
                 progressAction?.Invoke(0, "Getting zone information...");
 
+                // Get source document and transform for linked document support
+                Document sourceDoc = document;
+                Transform coordinateTransform = null;
+                if (config.General?.SelectedLinkedDocument != null &&
+                    !config.General.SelectedLinkedDocument.IsCurrentDocument)
+                {
+                    sourceDoc = config.General.SelectedLinkedDocument.LinkedDocument;
+                    coordinateTransform = config.General.SelectedLinkedDocument.GetInverseTransform();
+                }
+
                 // Get the selected zones
                 var zoneIds = config.ZoneMode.SelectedZoneIds;
                 if (zoneIds == null || zoneIds.Count == 0)
@@ -413,7 +480,7 @@ namespace COBIeManager.Shared.Services
                 var zoneNames = new List<string>();
                 foreach (var zoneId in zoneIds)
                 {
-                    var zone = document.GetElement(zoneId);
+                    var zone = sourceDoc.GetElement(zoneId);
                     if (zone != null)
                     {
                         zoneNames.Add(zone.Name);
@@ -426,7 +493,7 @@ namespace COBIeManager.Shared.Services
                 progressAction?.Invoke(10, $"Finding elements in {zoneIds.Count} zone(s)...");
 
                 // Find elements within the zones
-                var elementsInZones = FindElementsInZones(document, config);
+                var elementsInZones = FindElementsInZones(document, sourceDoc, config, coordinateTransform);
                 summary.ElementsFound = elementsInZones.Count;
 
                 // Get parameters to fill

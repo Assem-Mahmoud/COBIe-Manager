@@ -204,16 +204,28 @@ namespace COBIeManager
                     return new RoomAssignmentService(docLogger);
                 });
 
+                logger.Info("Registering ILinkedDocumentService singleton...");
+                services.RegisterSingleton<ILinkedDocumentService>(new LinkedDocumentService(logger));
+
                 logger.Info("Registering IBoxIdFillService singleton...");
-                services.RegisterSingleton<IBoxIdFillService>(new BoxIdFillService(logger));
+                services.AddSingleton<IBoxIdFillService>(sp =>
+                {
+                    var linkService = sp.GetService<ILinkedDocumentService>();
+                    if (linkService == null)
+                        throw new InvalidOperationException("Failed to resolve ILinkedDocumentService during IBoxIdFillService registration");
+                    return new BoxIdFillService(logger, linkService);
+                });
 
                 logger.Info("Registering IRoomFillService singleton...");
                 services.AddSingleton<IRoomFillService>(sp =>
                 {
                     var roomService = sp.GetService<IRoomAssignmentService>();
+                    var linkService = sp.GetService<ILinkedDocumentService>();
                     if (roomService == null)
                         throw new InvalidOperationException("Failed to resolve IRoomAssignmentService during IRoomFillService registration");
-                    return new RoomFillService(logger, roomService);
+                    if (linkService == null)
+                        throw new InvalidOperationException("Failed to resolve ILinkedDocumentService during IRoomFillService registration");
+                    return new RoomFillService(logger, roomService, linkService);
                 });
 
                 logger.Info("Registering IScopeBoxAssignmentService singleton...");
@@ -221,6 +233,9 @@ namespace COBIeManager
 
                 logger.Info("Registering IZoneAssignmentService singleton...");
                 services.RegisterSingleton<IZoneAssignmentService>(new ZoneAssignmentService(logger));
+
+                logger.Info("Registering ILinkedDocumentService singleton...");
+                services.RegisterSingleton<ILinkedDocumentService>(new LinkedDocumentService(logger));
 
                 logger.Info("Registering IParameterFillService singleton...");
                 services.AddSingleton<IParameterFillService>(sp =>

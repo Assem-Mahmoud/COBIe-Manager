@@ -21,6 +21,13 @@ namespace COBIeManager.Shared.Interfaces
         IList<Element> GetZones(Document document);
 
         /// <summary>
+        /// Gets all available zones (scope boxes) from the specified document
+        /// </summary>
+        /// <param name="document">The Revit document to get zones from</param>
+        /// <returns>List of zones sorted by name</returns>
+        IList<Element> GetZonesFromDocument(Document document);
+
+        /// <summary>
         /// Gets the bounding box of a zone (scope box)
         /// </summary>
         /// <param name="zone">The zone element (scope box)</param>
@@ -37,6 +44,15 @@ namespace COBIeManager.Shared.Interfaces
 
         /// <summary>
         /// Finds all elements within the selected zone bounds
+        /// </summary>
+        /// <param name="targetDocument">Document containing elements to fill parameters on</param>
+        /// <param name="sourceDocument">Document containing zones (may be a linked document)</param>
+        /// <param name="config">The fill configuration containing zone settings</param>
+        /// <returns>Dictionary mapping elements to their assigned value</returns>
+        IDictionary<Element, string> FindElementsInZones(Document targetDocument, Document sourceDocument, FillConfiguration config, Transform coordinateTransform);
+
+        /// <summary>
+        /// Finds all elements within the selected zone bounds (legacy method for backward compatibility)
         /// </summary>
         /// <param name="document">The Revit document</param>
         /// <param name="config">The fill configuration containing zone settings</param>

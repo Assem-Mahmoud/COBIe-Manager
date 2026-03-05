@@ -123,8 +123,9 @@ namespace COBIeManager.Shared.Services
             // Process groups preview if mode is selected and parameters are mapped
             if (hasGroupsMode && config.GetGroupModeParameters().Count > 0)
             {
-                // Group mode preview would go here
-                _logger.Info("Groups mode preview: Box ID fill preview not yet implemented");
+                var boxIdPreview = _boxIdFillService.PreviewFill(document, config);
+                summary.EstimatedElementsToProcess += boxIdPreview.EstimatedMembersToProcess;
+                _logger.Info($"Groups mode preview: {boxIdPreview.EstimatedGroupsToProcess} group instances, {boxIdPreview.EstimatedMembersToProcess} members to process");
             }
 
             // Process scope box preview if mode is selected and parameters are mapped
@@ -347,20 +348,10 @@ namespace COBIeManager.Shared.Services
             // Process groups fill if mode is selected and parameters are mapped
             if (hasGroupsMode && config.GetGroupModeParameters().Count > 0)
             {
-                var selectedParams = config.GetGroupModeParameters();
-                if (selectedParams.Count > 0)
-                {
-                    _logger.Info("Processing box ID fill");
-                    var boxIdParameter = selectedParams[0];
-                    var boxIdSummary = _boxIdFillService.ExecuteFill(
-                        document,
-                        boxIdParameter,
-                        config.OverwriteExisting,
-                        includeGroupElement: true,
-                        progressAction);
-                    finalSummary.BoxIdFillSummary = boxIdSummary;
-                    _logger.Info($"Box ID fill complete: {boxIdSummary.MembersUpdated} members updated");
-                }
+                _logger.Info("Processing box ID fill");
+                var boxIdSummary = _boxIdFillService.ExecuteFill(document, config, progressAction);
+                finalSummary.BoxIdFillSummary = boxIdSummary;
+                _logger.Info($"Box ID fill complete: {boxIdSummary.MembersUpdated} members updated");
             }
 
             // Process scope box fill if mode is selected and parameters are mapped

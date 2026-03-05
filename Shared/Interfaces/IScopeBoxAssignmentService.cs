@@ -20,6 +20,13 @@ namespace COBIeManager.Shared.Interfaces
         IList<Element> GetScopeBoxes(Document document);
 
         /// <summary>
+        /// Gets all available scope boxes in the specified document (for linked document support)
+        /// </summary>
+        /// <param name="document">The Revit document to get scope boxes from</param>
+        /// <returns>List of scope boxes sorted by name</returns>
+        IList<Element> GetScopeBoxesFromDocument(Document document);
+
+        /// <summary>
         /// Gets the bounding box of a scope box
         /// </summary>
         /// <param name="scopeBox">The scope box element</param>
@@ -37,6 +44,15 @@ namespace COBIeManager.Shared.Interfaces
 
         /// <summary>
         /// Finds all elements within the selected scope box bounds
+        /// </summary>
+        /// <param name="targetDocument">The document containing elements to fill</param>
+        /// <param name="sourceDocument">The document containing scope boxes (for linked doc support)</param>
+        /// <param name="config">The fill configuration containing scope box settings</param>
+        /// <returns>Dictionary mapping elements to their assigned value</returns>
+        IDictionary<Element, string> FindElementsInScopeBoxes(Document targetDocument, Document sourceDocument, FillConfiguration config, Transform coordinateTransform);
+
+        /// <summary>
+        /// Finds all elements within the selected scope box bounds (legacy method for backward compatibility)
         /// </summary>
         /// <param name="document">The Revit document</param>
         /// <param name="config">The fill configuration containing scope box settings</param>

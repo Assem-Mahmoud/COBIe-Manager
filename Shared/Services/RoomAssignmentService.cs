@@ -36,6 +36,37 @@ namespace COBIeManager.Shared.Services
             }
 
             var document = element.Document;
+            return GetRoomForElement(element, document, detectionMethod, null);
+        }
+
+        /// <summary>
+        /// Gets room associated with an element using specified detection method,
+        /// with support for linked documents as the room data source.
+        /// </summary>
+        /// <param name="element">Element to find room for (in host document)</param>
+        /// <param name="sourceDocument">Document to search for rooms (can be linked document)</param>
+        /// <param name="detectionMethod">Room detection method</param>
+        /// <param name="coordinateTransform">Optional transform from host to source document space</param>
+        /// <returns>Room object if found, null otherwise</returns>
+        public Room GetRoomForElement(
+            Element element,
+            Document sourceDocument,
+            RoomDetectionMethod detectionMethod,
+            Transform coordinateTransform = null)
+        {
+            if (element == null)
+            {
+                _logger.Warn("Cannot find room for null element");
+                return null;
+            }
+
+            if (sourceDocument == null)
+            {
+                _logger.Warn("Source document is null, cannot find room");
+                return null;
+            }
+
+            var elementDocument = element.Document;
 
             // Try direct Room property first (most reliable)
             if (detectionMethod == RoomDetectionMethod.DirectRoomProperty ||
@@ -78,8 +109,15 @@ namespace COBIeManager.Shared.Services
                 var point = GetElementPoint(element);
                 if (point != null)
                 {
-               
-                    var room = document.GetRoomAtPoint(point);
+                    // Transform point to source document space if transform is provided
+                    XYZ searchPoint = point;
+                    if (coordinateTransform != null && !elementDocument.Equals(sourceDocument))
+                    {
+                        searchPoint = coordinateTransform.OfPoint(point);
+                        _logger.Debug($"Element {element.Id}: Transformed point from ({point.X}, {point.Y}, {point.Z}) to ({searchPoint.X}, {searchPoint.Y}, {searchPoint.Z})");
+                    }
+
+                    var room = sourceDocument.GetRoomAtPoint(searchPoint);
                     if (room != null)
                     {
                         _logger.Debug($"Element {element.Id}: Room found via GetRoomAtPoint - '{room.Number}: {room.Name}'");
@@ -87,7 +125,7 @@ namespace COBIeManager.Shared.Services
                     }
                     else
                     {
-                        _logger.Debug($"Element {element.Id}: No room found at point ({point.X}, {point.Y}, {point.Z})");
+                        _logger.Debug($"Element {element.Id}: No room found at point ({searchPoint.X}, {searchPoint.Y}, {searchPoint.Z})");
                     }
                 }
                 else

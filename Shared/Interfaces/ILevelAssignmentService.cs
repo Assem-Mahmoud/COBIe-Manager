@@ -10,6 +10,12 @@ namespace COBIeManager.Shared.Interfaces
     public interface ILevelAssignmentService
     {
         /// <summary>
+        /// Gets all levels from the specified document
+        /// </summary>
+        /// <param name="document">The Revit document to get levels from</param>
+        /// <returns>List of levels sorted by elevation</returns>
+        IList<Level> GetLevels(Document document);
+        /// <summary>
         /// Gets the position of an element relative to a level band.
         /// Uses a two-tier check:
         /// 1. First checks if element is COMPLETELY INSIDE the level band (with tolerance applied)

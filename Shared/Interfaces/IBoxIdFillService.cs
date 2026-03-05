@@ -1,5 +1,6 @@
 using System;
 using Autodesk.Revit.DB;
+using COBIeManager.Features.ParameterFiller.Models;
 using COBIeManager.Shared.Models;
 
 namespace COBIeManager.Shared.Interfaces
@@ -12,26 +13,21 @@ namespace COBIeManager.Shared.Interfaces
         /// <summary>
         /// Analyzes groups and returns preview summary without modifying document
         /// </summary>
-        /// <param name="document">Revit document</param>
-        /// <param name="parameterName">Parameter name to fill</param>
-        /// <param name="overwriteExisting">Whether to overwrite existing values</param>
+        /// <param name="document">Revit document (host/target document)</param>
+        /// <param name="config">Fill configuration containing linked document selection</param>
         /// <returns>Preview summary with estimated counts</returns>
-        BoxIdFillPreviewSummary PreviewFill(Document document, string parameterName, bool overwriteExisting);
+        BoxIdFillPreviewSummary PreviewFill(Document document, FillConfiguration config);
 
         /// <summary>
         /// Executes box ID fill operation
         /// </summary>
-        /// <param name="document">Revit document</param>
-        /// <param name="parameterName">Parameter name to fill</param>
-        /// <param name="overwriteExisting">Whether to overwrite existing values</param>
-        /// <param name="includeGroupElement">Whether to also fill the group element itself</param>
+        /// <param name="document">Revit document (host/target document)</param>
+        /// <param name="config">Fill configuration containing linked document selection</param>
         /// <param name="progressAction">Optional progress callback</param>
         /// <returns>Processing summary with actual results</returns>
         BoxIdFillSummary ExecuteFill(
             Document document,
-            string parameterName,
-            bool overwriteExisting,
-            bool includeGroupElement,
+            FillConfiguration config,
             Action<int, string> progressAction = null);
     }
 }

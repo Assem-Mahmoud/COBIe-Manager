@@ -42,12 +42,16 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         private string _parameterSearchText = string.Empty;
 
         // UI Collections
+        public ObservableCollection<LinkedDocumentItem> LinkedDocuments { get; }
         public ObservableCollection<Level> Levels { get; }
         public ObservableCollection<Element> ScopeBoxes { get; }
         public ObservableCollection<Element> Zones { get; }
         public ObservableCollection<CategoryItem> AvailableCategories { get; }
         public ObservableCollection<ParameterItem> AvailableParameters { get; }
         public ObservableCollection<FillModeItem> AvailableFillModes { get; }
+
+        [ObservableProperty]
+        private LinkedDocumentItem _selectedLinkedDocument;
 
         // Filtered collections for search
         public ICollectionView FilteredCategories { get; }
@@ -89,6 +93,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             Config = FillConfiguration.CreateDefault();
 
             // Initialize collections
+            LinkedDocuments = new ObservableCollection<LinkedDocumentItem>();
             Levels = new ObservableCollection<Level>();
             ScopeBoxes = new ObservableCollection<Element>();
             Zones = new ObservableCollection<Element>();
@@ -153,11 +158,31 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             FilteredParameters.Filter = FilterParameters;
 
             // Load data from document
+            LoadLinkedDocuments();
             LoadLevels();
             LoadScopeBoxes();
             LoadZones();
             LoadCategories();
             LoadParameters();
+        }
+
+        /// <summary>
+        /// Called when SelectedLinkedDocument property changes
+        /// </summary>
+        partial void OnSelectedLinkedDocumentChanged(LinkedDocumentItem value)
+        {
+            if (value != null)
+            {
+                // Update config with selected linked document
+                Config.General.SelectedLinkedDocument = value;
+
+                // Reload spatial data from the selected source document
+                LoadLevels();
+                LoadScopeBoxes();
+                LoadZones();
+
+                StatusMessage = $"Data source: {value.DisplayName}";
+            }
         }
 
         /// <summary>
@@ -253,7 +278,49 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
-        /// Loads levels from the Revit document
+        /// Loads linked documents from the Revit document
+        /// </summary>
+        private void LoadLinkedDocuments()
+        {
+            if (_uiDoc == null || _uiDoc.Document == null)
+            {
+                StatusMessage = "No active document";
+                return;
+            }
+
+            try
+            {
+                var linkService = ServiceLocator.GetService<ILinkedDocumentService>();
+                if (linkService == null)
+                {
+                    StatusMessage = "Linked document service not available";
+                    return;
+                }
+
+                var linkedDocs = linkService.GetLinkedDocuments(_uiDoc.Document);
+                LinkedDocuments.Clear();
+                foreach (var linkedDoc in linkedDocs)
+                {
+                    LinkedDocuments.Add(linkedDoc);
+                }
+
+                // Set default selection to first item (Current Document)
+                if (LinkedDocuments.Count > 0)
+                {
+                    SelectedLinkedDocument = LinkedDocuments[0];
+                    Config.General.SelectedLinkedDocument = SelectedLinkedDocument;
+                }
+
+                StatusMessage = $"Loaded {LinkedDocuments.Count} data source options";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error loading linked documents: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Loads levels from the Revit document (or linked document if selected)
         /// </summary>
         private void LoadLevels()
         {
@@ -265,14 +332,20 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             try
             {
-                var doc = _uiDoc.Document;
-                var levelCollector = new FilteredElementCollector(doc)
-                    .OfClass(typeof(Level));
+                // Determine source document for levels
+                var sourceDoc = GetSourceDocument();
+
+                var levelService = ServiceLocator.GetService<ILevelAssignmentService>();
+                if (levelService == null)
+                {
+                    StatusMessage = "Level service not available";
+                    return;
+                }
+
+                var levels = levelService.GetLevels(sourceDoc);
 
                 Levels.Clear();
-                foreach (var level in levelCollector
-                    .OrderBy(l => ((Level)l).Elevation)
-                    .Cast<Level>())
+                foreach (var level in levels)
                 {
                     Levels.Add(level);
                 }
@@ -485,7 +558,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
-        /// Loads scope boxes from the Revit document
+        /// Loads scope boxes from the Revit document (or linked document if selected)
         /// </summary>
         private void LoadScopeBoxes()
         {
@@ -497,34 +570,26 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             try
             {
-                var doc = _uiDoc.Document;
+                var sourceDoc = GetSourceDocument();
 
-                // Get scope boxes (category: OST_VolumeOfInterest)
-                var scopeBoxCollector = new FilteredElementCollector(doc)
-                    .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_VolumeOfInterest)
-                    .WhereElementIsNotElementType();
+                var scopeBoxService = ServiceLocator.GetService<IScopeBoxAssignmentService>();
+                if (scopeBoxService == null)
+                {
+                    StatusMessage = "Scope box service not available";
+                    return;
+                }
+
+                var scopeBoxElements = scopeBoxService.GetScopeBoxesFromDocument(sourceDoc);
 
                 ScopeBoxes.Clear();
-                var scopeBoxElements = scopeBoxCollector
-                    .OrderBy(sb => sb.Name)
-                    .ToList();
-
-                // Populate scope boxes and restore selections from config
                 foreach (var scopeBox in scopeBoxElements)
                 {
                     ScopeBoxes.Add(scopeBox);
                 }
 
-                // Restore selected scope boxes from config
-                // First, save the previously selected IDs before clearing
-                var previouslySelectedIds = Config.ScopeBoxMode.SelectedScopeBoxIds.ToList();
+                // Clear selections when source document changes (IDs from different document)
                 Config.ScopeBoxMode.SelectedScopeBoxes.Clear();
                 Config.ScopeBoxMode.SelectedScopeBoxIds.Clear();
-                foreach (var scopeBox in ScopeBoxes.Where(sb => previouslySelectedIds.Contains(sb.Id)))
-                {
-                    Config.ScopeBoxMode.SelectedScopeBoxes.Add(scopeBox);
-                    Config.ScopeBoxMode.SelectedScopeBoxIds.Add(scopeBox.Id);
-                }
 
                 StatusMessage = $"Loaded {ScopeBoxes.Count} scope boxes";
             }
@@ -535,7 +600,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         }
 
         /// <summary>
-        /// Loads zones (scope boxes) from the Revit document
+        /// Loads zones (scope boxes) from the Revit document (or linked document if selected)
         /// </summary>
         private void LoadZones()
         {
@@ -547,34 +612,26 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             try
             {
-                var doc = _uiDoc.Document;
+                var sourceDoc = GetSourceDocument();
 
-                // Get zones (scope boxes - category: OST_VolumeOfInterest)
-                var zoneCollector = new FilteredElementCollector(doc)
-                    .OfCategory(Autodesk.Revit.DB.BuiltInCategory.OST_VolumeOfInterest)
-                    .WhereElementIsNotElementType();
+                var zoneService = ServiceLocator.GetService<IZoneAssignmentService>();
+                if (zoneService == null)
+                {
+                    StatusMessage = "Zone service not available";
+                    return;
+                }
+
+                var zoneElements = zoneService.GetZonesFromDocument(sourceDoc);
 
                 Zones.Clear();
-                var zoneElements = zoneCollector
-                    .OrderBy(z => z.Name)
-                    .ToList();
-
-                // Populate zones and restore selections from config
                 foreach (var zone in zoneElements)
                 {
                     Zones.Add(zone);
                 }
 
-                // Restore selected zones from config
-                // First, save the previously selected IDs before clearing
-                var previouslySelectedIds = Config.ZoneMode.SelectedZoneIds.ToList();
+                // Clear selections when source document changes (IDs from different document)
                 Config.ZoneMode.SelectedZones.Clear();
                 Config.ZoneMode.SelectedZoneIds.Clear();
-                foreach (var zone in Zones.Where(z => previouslySelectedIds.Contains(z.Id)))
-                {
-                    Config.ZoneMode.SelectedZones.Add(zone);
-                    Config.ZoneMode.SelectedZoneIds.Add(zone.Id);
-                }
 
                 StatusMessage = $"Loaded {Zones.Count} zones";
             }
@@ -582,6 +639,20 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
             {
                 StatusMessage = $"Error loading zones: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Gets the source document for spatial data based on the selected linked document
+        /// </summary>
+        /// <returns>The source document (current or linked)</returns>
+        private Document GetSourceDocument()
+        {
+            if (SelectedLinkedDocument == null || SelectedLinkedDocument.IsCurrentDocument)
+            {
+                return _uiDoc.Document;
+            }
+
+            return SelectedLinkedDocument.LinkedDocument;
         }
 
         /// <summary>

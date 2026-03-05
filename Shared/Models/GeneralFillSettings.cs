@@ -1,5 +1,6 @@
 using Autodesk.Revit.DB;
 using COBIeManager.Features.ParameterFiller.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -30,6 +31,14 @@ namespace COBIeManager.Shared.Models
         /// Available parameters with selection state and mapping
         /// </summary>
         public IList<ParameterItem> AvailableParameters { get; set; }
+
+        /// <summary>
+        /// The selected linked document to use as the data source for spatial data.
+        /// When null or IsCurrentDocument is true, the current document is used.
+        /// This allows using architectural data (rooms, levels, scope boxes) from a linked model
+        /// while filling parameters on elements in the active (e.g., MEP) document.
+        /// </summary>
+        public LinkedDocumentItem SelectedLinkedDocument { get; set; }
 
         /// <summary>
         /// Creates a default general settings instance

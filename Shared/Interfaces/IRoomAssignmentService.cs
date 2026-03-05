@@ -21,6 +21,21 @@ namespace COBIeManager.Shared.Interfaces
             RoomDetectionMethod detectionMethod);
 
         /// <summary>
+        /// Gets room associated with an element using specified detection method,
+        /// with support for linked documents as the room data source.
+        /// </summary>
+        /// <param name="element">Element to find room for (in host document)</param>
+        /// <param name="sourceDocument">Document to search for rooms (can be linked document)</param>
+        /// <param name="detectionMethod">Room detection method</param>
+        /// <param name="coordinateTransform">Optional transform from host to source document space</param>
+        /// <returns>Room object if found, null otherwise</returns>
+        Room GetRoomForElement(
+            Element element,
+            Document sourceDocument,
+            RoomDetectionMethod detectionMethod,
+            Transform coordinateTransform = null);
+
+        /// <summary>
         /// Assigns room parameters to an element
         /// </summary>
         /// <param name="element">Element to assign parameters to</param>
