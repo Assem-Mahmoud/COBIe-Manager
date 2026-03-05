@@ -15,7 +15,7 @@ namespace COBIeManager.Shared.Models
         /// <summary>
         /// Whether to overwrite existing parameter values
         /// </summary>
-        public bool OverwriteExisting { get; set; }=true;
+        public bool OverwriteExisting { get; set; } = true;
 
         /// <summary>
         /// Element categories to process
@@ -50,7 +50,7 @@ namespace COBIeManager.Shared.Models
                 SelectedCategories = new List<BuiltInCategory>(),
                 AvailableCategories = new List<CategoryItem>(),
                 AvailableParameters = new List<ParameterItem>(),
-                OverwriteExisting = false
+                OverwriteExisting = true
             };
         }
 

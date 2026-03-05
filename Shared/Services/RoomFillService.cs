@@ -64,6 +64,9 @@ namespace COBIeManager.Shared.Services
                 throw new ArgumentNullException(nameof(config));
             }
 
+            // Clear the room cache to ensure fresh data
+            _roomAssignmentService.ClearCache();
+
             // Clear any previous wall-room associations
             _wallRoomAssociations.Clear();
 
@@ -149,7 +152,8 @@ namespace COBIeManager.Shared.Services
                 {
                     // For other elements, use the standard room detection with linked document support
                     // sourceDoc and transform are already declared in outer scope
-                    room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform);
+                    double roomTolerance = GetRoomTolerance(config);
+                    room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform, roomTolerance);
                 }
 
                 if (room != null)
@@ -192,6 +196,9 @@ namespace COBIeManager.Shared.Services
             {
                 throw new ArgumentNullException(nameof(config));
             }
+
+            // Clear the room cache to ensure fresh data
+            _roomAssignmentService.ClearCache();
 
             // Clear any previous wall-room associations
             _wallRoomAssociations.Clear();
@@ -343,7 +350,8 @@ namespace COBIeManager.Shared.Services
                         {
                             // For other elements, use the standard room detection with linked document support
                             // sourceDoc and transform are already declared in outer scope
-                            room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform);
+                            double roomTolerance = GetRoomTolerance(config);
+                            room = _roomAssignmentService.GetRoomForElement(element, sourceDoc, RoomDetectionMethod.PointInRoom, transform, roomTolerance);
                         }
 
                         if (room != null)
@@ -390,17 +398,54 @@ namespace COBIeManager.Shared.Services
                         }
                         else
                         {
-                            // No room found - determine skip reason
-                            var point = GetElementPoint(element);
-                            if (point == null)
+                            // No room found - fill with NotAssignedValue instead of skipping
+                            // Get the appropriate NotAssignedValue based on which modes are enabled
+                            string notAssignedValue = GetNotAssignedValue(config, hasRoomNameMode, hasRoomNumberMode);
+
+                            _logger.Debug($"Element {element.Id}: No room found, filling with '{notAssignedValue}'");
+
+                            // Fill each selected parameter with NotAssignedValue
+                            int parametersAssigned = 0;
+                            foreach (var paramItem in allSelectedParameters)
                             {
-                                summary.SkippedNoLocation++;
-                                TrackSkippedElement(summary, "NoLocation", element.Id.IntegerValue);
+                                // Try to set the parameter with NotAssignedValue
+                                if (TrySetParameter(element, paramItem.ParameterName, notAssignedValue, config.OverwriteExisting))
+                                {
+                                    parametersAssigned++;
+
+                                    // Track statistics - count as N/A fills instead of skips
+                                    if (paramItem.ApplicableMode == FillMode.RoomName)
+                                    {
+                                        summary.RoomNameParametersFilled++;
+                                        summary.RoomNameParametersFilledWithNA++;
+                                    }
+                                    else if (paramItem.ApplicableMode == FillMode.RoomNumber)
+                                    {
+                                        summary.RoomNumberParametersFilled++;
+                                        summary.RoomNumberParametersFilledWithNA++;
+                                    }
+                                }
+                            }
+
+                            if (parametersAssigned > 0)
+                            {
+                                summary.ElementsUpdated++;
+                                summary.ElementsFilledWithNA++;
                             }
                             else
                             {
-                                summary.SkippedNoRoomFound++;
-                                TrackSkippedElement(summary, "NoRoomFound", element.Id.IntegerValue);
+                                // Determine skip reason for logging purposes
+                                var point = GetElementPoint(element);
+                                if (point == null)
+                                {
+                                    summary.SkippedNoLocation++;
+                                    TrackSkippedElement(summary, "NoLocation", element.Id.IntegerValue);
+                                }
+                                else
+                                {
+                                    summary.SkippedNoRoomFound++;
+                                    TrackSkippedElement(summary, "NoRoomFound", element.Id.IntegerValue);
+                                }
                             }
                         }
                     }
@@ -927,6 +972,60 @@ namespace COBIeManager.Shared.Services
                 summary.SkippedElementIds[reason] = new List<int>();
             }
             summary.SkippedElementIds[reason].Add(elementId);
+        }
+
+        /// <summary>
+        /// Gets the appropriate tolerance value for room detection based on enabled room modes.
+        /// Returns the maximum tolerance if both room modes are enabled.
+        /// </summary>
+        /// <param name="config">Fill configuration containing mode settings</param>
+        /// <returns>Tolerance value in feet (internal Revit units)</returns>
+        private double GetRoomTolerance(FillConfiguration config)
+        {
+            if (config == null)
+                return 0.0;
+
+            double tolerance = 0.0;
+
+            // Use RoomNameMode tolerance if enabled
+            if (config.RoomNameMode?.IsEnabled == true && config.RoomNameMode.Tolerance > tolerance)
+            {
+                tolerance = config.RoomNameMode.Tolerance;
+            }
+
+            // Use RoomNumberMode tolerance if enabled and greater
+            if (config.RoomNumberMode?.IsEnabled == true && config.RoomNumberMode.Tolerance > tolerance)
+            {
+                tolerance = config.RoomNumberMode.Tolerance;
+            }
+
+            return tolerance;
+        }
+
+        /// <summary>
+        /// Gets the NotAssignedValue to use for elements that don't match the filter.
+        /// Uses the value from the enabled mode, or defaults to "N/A".
+        /// </summary>
+        /// <param name="config">Fill configuration containing mode settings</param>
+        /// <param name="hasRoomNameMode">Whether RoomName mode is enabled</param>
+        /// <param name="hasRoomNumberMode">Whether RoomNumber mode is enabled</param>
+        /// <returns>The value to use for non-matching elements</returns>
+        private string GetNotAssignedValue(FillConfiguration config, bool hasRoomNameMode, bool hasRoomNumberMode)
+        {
+            // Prefer RoomNameMode's NotAssignedValue if enabled
+            if (hasRoomNameMode && config.RoomNameMode != null)
+            {
+                return config.RoomNameMode.NotAssignedValue ?? "N/A";
+            }
+
+            // Fall back to RoomNumberMode's NotAssignedValue if enabled
+            if (hasRoomNumberMode && config.RoomNumberMode != null)
+            {
+                return config.RoomNumberMode.NotAssignedValue ?? "N/A";
+            }
+
+            // Default to "N/A"
+            return "N/A";
         }
     }
 }

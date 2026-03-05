@@ -64,6 +64,21 @@ namespace COBIeManager.Shared.Models
         public int SkippedValueExists { get; set; }
 
         /// <summary>
+        /// Elements filled with NotAssignedValue (N/A) because no room was found
+        /// </summary>
+        public int ElementsFilledWithNA { get; set; }
+
+        /// <summary>
+        /// Room number parameters filled with NotAssignedValue (N/A)
+        /// </summary>
+        public int RoomNumberParametersFilledWithNA { get; set; }
+
+        /// <summary>
+        /// Room name parameters filled with NotAssignedValue (N/A)
+        /// </summary>
+        public int RoomNameParametersFilledWithNA { get; set; }
+
+        /// <summary>
         /// Time taken for the operation
         /// </summary>
         public TimeSpan ProcessingDuration { get; set; }

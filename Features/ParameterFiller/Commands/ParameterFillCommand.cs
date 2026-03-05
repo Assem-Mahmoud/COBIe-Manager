@@ -36,7 +36,7 @@ namespace COBIeManager.Features.ParameterFiller.Commands
         private async System.Threading.Tasks.Task ShowParameterFillWindowAsync(UIDocument uiDoc)
         {
             var window = new Views.ParameterFillWindow(uiDoc);
-            window.ShowDialog();
+            window.Show();  // Use Show() instead of ShowDialog() to keep Revit thread free
         }
 
         private void EnsureAssemblyResolverInstalled()

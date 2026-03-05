@@ -25,12 +25,14 @@ namespace COBIeManager.Shared.Models
         /// </summary>
         public override string IconKind => "Numeric";
 
-        // Future room number-specific settings can be added here:
-        // - Search radius for finding rooms
-        // - Room boundary options
-        // - Phase selection
-        // - Number format options
-        // - etc.
+        /// <summary>
+        /// Tolerance to extend the room bounding box for detection in internal units (feet).
+        /// UI input is in millimeters and converted to feet automatically.
+        /// This helps detect elements that are hosted in walls (like electrical sockets)
+        /// or elements just outside room boundaries.
+        /// Default: 150mm (~0.5 feet) - typical wall thickness allowance
+        /// </summary>
+        public double Tolerance { get; set; } = 0.5;
 
         /// <summary>
         /// Validates the configuration for Room Number mode

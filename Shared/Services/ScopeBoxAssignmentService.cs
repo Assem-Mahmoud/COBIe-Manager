@@ -582,6 +582,91 @@ namespace COBIeManager.Shared.Services
                     transaction.Commit();
                 }
 
+                // After filling elements in scope boxes, handle elements not in any scope box
+                // Collect all elements from selected categories
+                var allCategoryElements = new List<Element>();
+                var selectedCategories = config.GetSelectedCategories();
+                foreach (var category in selectedCategories)
+                {
+                    try
+                    {
+                        var collector = new FilteredElementCollector(document)
+                            .OfCategory(category)
+                            .WhereElementIsNotElementType()
+                            .WhereElementIsViewIndependent();
+                        allCategoryElements.AddRange(collector.ToElements());
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error($"Error collecting elements for category {category}: {ex.Message}");
+                    }
+                }
+
+                // Get element IDs that were processed (in scope boxes)
+                var processedElementIds = new HashSet<int>(elementsInScopeBoxes.Keys.Select(e => e.Id.IntegerValue));
+
+                // Fill with NotAssignedValue for elements not in any scope box
+                string notAssignedValue = config.ScopeBoxMode?.NotAssignedValue ?? "N/A";
+                int elementsNotInScopeBox = 0;
+                int parametersFilledWithNA = 0;
+
+                if (allCategoryElements.Count > 0)
+                {
+                    progressAction?.Invoke(80, "Filling N/A for elements outside scope boxes...");
+
+                    using (var transaction2 = new Transaction(document, "Fill N/A for Non-Scope Box Elements"))
+                    {
+                        transaction2.Start();
+
+                        foreach (var element in allCategoryElements)
+                        {
+                            // Skip if already processed (in a scope box)
+                            if (processedElementIds.Contains(element.Id.IntegerValue))
+                                continue;
+
+                            elementsNotInScopeBox++;
+
+                            foreach (var paramName in parametersToFill)
+                            {
+                                var param = element.LookupParameter(paramName);
+
+                                if (param != null && !param.IsReadOnly)
+                                {
+                                    // Check if we should overwrite
+                                    if (config.General.OverwriteExisting || !param.HasValue)
+                                    {
+                                        try
+                                        {
+                                            param.Set(notAssignedValue);
+                                            summary.ParametersFilled++;
+                                            parametersFilledWithNA++;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            summary.Errors++;
+                                            summary.ErrorMessages.Add($"Failed to set {paramName} on element {element.Id}: {ex.Message}");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        summary.ParametersSkipped++;
+                                    }
+                                }
+                                else
+                                {
+                                    summary.ParametersSkipped++;
+                                }
+                            }
+                        }
+
+                        transaction2.Commit();
+                    }
+
+                    summary.ElementsNotInScopeBox = elementsNotInScopeBox;
+                    summary.ParametersFilledWithNA = parametersFilledWithNA;
+                    _logger.Info($"Filled {parametersFilledWithNA} parameters with '{notAssignedValue}' for {elementsNotInScopeBox} elements outside scope boxes");
+                }
+
                 progressAction?.Invoke(100, "Fill complete");
                 _logger.Info($"Scope box fill complete: {summary.ParametersFilled} parameters filled, {summary.ParametersSkipped} skipped");
             }

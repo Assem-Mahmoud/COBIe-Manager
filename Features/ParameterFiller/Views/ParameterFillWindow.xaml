@@ -43,6 +43,8 @@
             <converters:ZoneCustomNameBindingConverter x:Key="ZoneCustomNameBindingConverter" />
             <converters:ScopeBoxCustomNameIsEmptyConverter x:Key="ScopeBoxCustomNameIsEmptyConverter" />
             <converters:ScopeBoxCustomNameBindingConverter x:Key="ScopeBoxCustomNameBindingConverter" />
+            <converters:RoomNameOnlyVisibilityConverter x:Key="RoomNameOnlyVisibilityConverter" />
+            <converters:RoomNumberOnlyVisibilityConverter x:Key="RoomNumberOnlyVisibilityConverter" />
 
             <!--  Modern ComboBox Style  -->
             <Style
@@ -569,7 +571,8 @@
                                                                     BorderThickness="1,0,1,1"
                                                                     CornerRadius="0,0,4,4"
                                                                     Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                    <StackPanel>
+                                                                    <Grid>
+                                                                         <StackPanel>
                                                                         <!--  Level Mode Settings  -->
                                                                         <StackPanel>
                                                                             <StackPanel.Visibility>
@@ -951,6 +954,72 @@
                                                                             </StackPanel>
                                                                         </StackPanel>
                                                                     </StackPanel>
+
+                                                                    <!--  Room Name Mode Settings  -->
+                                                                    <StackPanel>
+                                                                        <StackPanel.Visibility>
+                                                                            <MultiBinding Converter="{StaticResource RoomNameOnlyVisibilityConverter}">
+                                                                                <Binding Path="IsSelected" />
+                                                                                <Binding Path="Mode" />
+                                                                            </MultiBinding>
+                                                                        </StackPanel.Visibility>
+
+                                                                        <!--  Tolerance Setting  -->
+                                                                        <StackPanel>
+                                                                            <TextBlock
+                                                                                Margin="0,0,0,2"
+                                                                                FontSize="10"
+                                                                                Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                Text="Tolerance (mm)" />
+                                                                            <Border
+                                                                                Padding="8,6"
+                                                                                Background="White"
+                                                                                BorderBrush="#E0E0E0"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="3">
+                                                                                <TextBox
+                                                                                    Padding="8,4"
+                                                                                    VerticalAlignment="Center"
+                                                                                    FontSize="11"
+                                                                                    Text="{Binding DataContext.Config.RoomNameMode.Tolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
+                                                                                    ToolTip="Extends the room bounding box for detection. Helps find elements in walls (like sockets) or just outside room boundaries." />
+                                                                            </Border>
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+
+                                                                    <!--  Room Number Mode Settings  -->
+                                                                    <StackPanel>
+                                                                        <StackPanel.Visibility>
+                                                                            <MultiBinding Converter="{StaticResource RoomNumberOnlyVisibilityConverter}">
+                                                                                <Binding Path="IsSelected" />
+                                                                                <Binding Path="Mode" />
+                                                                            </MultiBinding>
+                                                                        </StackPanel.Visibility>
+
+                                                                        <!--  Tolerance Setting  -->
+                                                                        <StackPanel>
+                                                                            <TextBlock
+                                                                                Margin="0,0,0,2"
+                                                                                FontSize="10"
+                                                                                Foreground="{StaticResource SecondaryTextBrush}"
+                                                                                Text="Tolerance (mm)" />
+                                                                            <Border
+                                                                                Padding="8,6"
+                                                                                Background="White"
+                                                                                BorderBrush="#E0E0E0"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="3">
+                                                                                <TextBox
+                                                                                    Padding="8,4"
+                                                                                    VerticalAlignment="Center"
+                                                                                    FontSize="11"
+                                                                                    Text="{Binding DataContext.Config.RoomNumberMode.Tolerance, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource MillimetersToFeetConverter}}"
+                                                                                    ToolTip="Extends the room bounding box for detection. Helps find elements in walls (like sockets) or just outside room boundaries." />
+                                                                            </Border>
+                                                                        </StackPanel>
+                                                                    </StackPanel>
+                                                                    </Grid>
+                                                                   
                                                                 </Border>
                                                             </StackPanel>
                                                         </Border>
@@ -959,30 +1028,6 @@
                                             </ItemsControl>
                                         </StackPanel>
                                     </Border>
-
-                                    <!--  Preview Warnings (if any)  -->
-                                    <ItemsControl
-                                        Margin="0,8,0,0"
-                                        ItemsSource="{Binding PreviewSummary.ValidationWarnings}"
-                                        Visibility="{Binding PreviewSummary.HasValidationWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border
-                                                    Margin="0,0,0,4"
-                                                    Padding="8,4"
-                                                    Background="#FFF3E0"
-                                                    BorderBrush="#FF9800"
-                                                    BorderThickness="1"
-                                                    CornerRadius="3">
-                                                    <TextBlock
-                                                        FontSize="10"
-                                                        Foreground="#E65100"
-                                                        Text="{Binding}"
-                                                        TextWrapping="Wrap" />
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
                                 </StackPanel>
                             </ScrollViewer>
                         </Grid>

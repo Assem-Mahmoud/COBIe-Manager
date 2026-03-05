@@ -224,6 +224,9 @@ namespace COBIeManager.Shared.Services
                     int totalMembersProcessed = 0;
                     int totalInstances = groupsByType.Sum(g => g.Count());
 
+                    // Track all processed element IDs to fill N/A for non-processed elements later
+                    var processedElementIds = new HashSet<int>();
+
                     foreach (var typeGroup in groupsByType)
                     {
                         processedTypes++;
@@ -290,6 +293,7 @@ namespace COBIeManager.Shared.Services
                                         if (result.Success)
                                         {
                                             summary.MembersUpdated++;
+                                            processedElementIds.Add(element.Id.IntegerValue);
                                         }
                                         else if (result.Skipped)
                                         {
@@ -349,6 +353,7 @@ namespace COBIeManager.Shared.Services
                                     if (result.Success)
                                     {
                                         summary.MembersUpdated++;
+                                        processedElementIds.Add(member.Id.IntegerValue);
                                     }
                                     else if (result.Skipped)
                                     {
@@ -377,6 +382,57 @@ namespace COBIeManager.Shared.Services
                         // Count each instance processed, not just the type
                         summary.GroupsProcessed += typeGroup.Count();
                     }
+
+                    // After processing all groups, handle elements not in any group
+                    // Collect all elements from selected categories
+                    var allCategoryElements = CollectElementsByCategories(document, selectedCategories);
+                    // Use the processedElementIds HashSet that was populated during group processing
+
+                    int elementsNotInGroup = 0;
+                    int elementsFilledWithNA = 0;
+                    string notAssignedValue = config.GroupsMode?.NotAssignedValue ?? "N/A";
+
+                    foreach (var element in allCategoryElements)
+                    {
+                        // Skip if this element was already processed (in a group)
+                        if (processedElementIds.Contains(element.Id.IntegerValue))
+                            continue;
+
+                        // Skip nested groups
+                        if (element is Group)
+                            continue;
+
+                        elementsNotInGroup++;
+
+                        // Fill with NotAssignedValue
+                        var result = TrySetParameter(element, parameterName, notAssignedValue, overwriteExisting);
+                        if (result.Success)
+                        {
+                            elementsFilledWithNA++;
+                            summary.MembersUpdated++;
+                            summary.MembersFilledWithNA++;
+                        }
+                        else if (result.Skipped)
+                        {
+                            summary.RegisterSkippedElement(element.Id.IntegerValue, result.SkipReason);
+
+                            switch (result.SkipReason)
+                            {
+                                case SkipReasons.ParameterMissing:
+                                    summary.MembersSkippedParameterMissing++;
+                                    break;
+                                case SkipReasons.ParameterReadOnly:
+                                    summary.MembersSkippedParameterReadOnly++;
+                                    break;
+                                case SkipReasons.ValueExists:
+                                    summary.MembersSkippedValueExists++;
+                                    break;
+                            }
+                        }
+                    }
+
+                    summary.MembersNotInGroup = elementsNotInGroup;
+                    _logger.Info($"Filled {elementsFilledWithNA} elements not in any group with '{notAssignedValue}'");
 
                     transaction.Commit();
 

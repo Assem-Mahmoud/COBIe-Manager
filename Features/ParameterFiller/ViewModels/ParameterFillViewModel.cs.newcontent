@@ -1,0 +1,135 @@
+        /// <summary>
+        /// Loads available model categories from the Revit document dynamically
+        /// </summary>
+        private void LoadCategories()
+        {
+            if (_uiDoc == null || _uiDoc.Document == null)
+            {
+                StatusMessage = "No active document";
+                return;
+            }
+
+            try
+            {
+                var doc = _uiDoc.Document;
+                AvailableCategories.Clear();
+
+                // Get all categories that have elements in the document
+                // This approach is version-agnostic and adapts to any Revit version
+                var allElements = new FilteredElementCollector(doc)
+                    .WhereElementIsNotElementType()
+                    .ToElements();
+
+                // Group elements by category and count them
+                var categoryCounts = new Dictionary<BuiltInCategory, (Category Category, int Count)>();
+                foreach (var element in allElements)
+                {
+                    try
+                    {
+                        var cat = element.Category;
+                        if (cat != null && element.Category is Category category && category.Id is ElementId catId)
+                        {
+                            var builtInCat = (BuiltInCategory)catId.IntegerValue;
+                            if (categoryCounts.ContainsKey(builtInCat))
+                            {
+                                categoryCounts[builtInCat] = (category, categoryCounts[builtInCat].Count + 1);
+                            }
+                            else
+                            {
+                                categoryCounts[builtInCat] = (category, 1);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Skip elements without valid categories
+                        continue;
+                    }
+                }
+
+                // Filter to only model categories (exclude annotation, analysis, etc.)
+                var excludedCategories = new HashSet<BuiltInCategory>
+                {
+                    BuiltInCategory.OST_AnnotationStyles,
+                    BuiltInCategory.OST_DimStyles,
+                    BuiltInCategory.OST_TextStyles,
+                    BuiltInCategory.OST_Tags,
+                    BuiltInCategory.OST_RevisionClouds,
+                    BuiltInCategory.OST_ViewNames,
+                    BuiltInCategory.OST_ViewReference,
+                    BuiltInCategory.OST_SheetBase,
+                    BuiltInCategory.OST_TitleBlocks,
+                    BuiltInCategory.OST_KeynoteTags,
+                    BuiltInCategory.OST_MaterialTags,
+                    BuiltInCategory.OST_RoomTags,
+                    BuiltInCategory.OST_AreaTags,
+                    BuiltInCategory.OST_SpaceTags,
+                    BuiltInCategory.OST_LevelHeads,
+                    BuiltInCategory.OST_GridHeads,
+                    BuiltInCategory.OST_SectionTags,
+                    BuiltInCategory.OST_CalloutTags,
+                    BuiltInCategory.OST_ElevationTags,
+                    BuiltInCategory.OST_MechanicalAnnotationTags,
+                    BuiltInCategory.OST_ElectricalAnnotationTags,
+                    BuiltInCategory.OST_PipeAnnotationTags,
+                    BuiltInCategory.OST_DuctAnnotationTags,
+                    BuiltInCategory.OST_SprinklerAnnotationTags,
+                    BuiltInCategory.OST_FireAlarmAnnotationTags,
+                    BuiltInCategory.OST_CommunicationAnnotationTags,
+                    BuiltInCategory.OST_DataAnnotationTags,
+                    BuiltInCategory.OST_NurseCallAnnotationTags,
+                    BuiltInCategory.OST_PhoneAnnotationTags,
+                    BuiltInCategory.OST_SecurityAnnotationTags,
+                    BuiltInCategory.OST_CableTrayAnnotationTags,
+                    BuiltInCategory.OST_ConduitAnnotationTags,
+                    BuiltInCategory.OST_DetailComponents,
+                    BuiltInCategory.OST_LineStyles,
+                    BuiltInCategory.OST_Patterns,
+                    BuiltInCategory.OST_FillPatterns,
+                    BuiltInCategory.OST_Arrowheads,
+                    BuiltInCategory.OST_Images,
+                    BuiltInCategory.OST_PreviewLegendComponents
+                };
+
+                // Create CategoryItem for each category found
+                foreach (var kvp in categoryCounts.OrderBy(x => x.Value.Category.Name))
+                {
+                    var builtInCat = kvp.Key;
+                    var category = kvp.Value.Category;
+                    var count = kvp.Value.Count;
+
+                    // Skip excluded categories
+                    if (excludedCategories.Contains(builtInCat))
+                        continue;
+
+                    var categoryItem = new CategoryItem(
+                        builtInCat,
+                        category.Name,
+                        count,
+                        isSelected: count > 0);
+
+                    // Subscribe to property changes to update counts
+                    categoryItem.PropertyChanged += (s, e) =>
+                    {
+                        if (e.PropertyName == nameof(CategoryItem.IsSelected))
+                        {
+                            OnPropertyChanged(nameof(SelectedCategoryCount));
+                        }
+                    };
+
+                    AvailableCategories.Add(categoryItem);
+                }
+
+                // Update config with available categories
+                Config.General.AvailableCategories = AvailableCategories.ToList();
+
+                OnPropertyChanged(nameof(SelectedCategoryCount));
+                OnPropertyChanged(nameof(TotalCategoryCount));
+
+                StatusMessage = $"Loaded {AvailableCategories.Count} categories from document";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error loading categories: {ex.Message}";
+            }
+        }

@@ -11,14 +11,6 @@ namespace COBIeManager.Shared.Interfaces
     public interface IParameterFillService
     {
         /// <summary>
-        /// Analyzes elements and returns preview summary without modifying document
-        /// </summary>
-        /// <param name="document">Revit document</param>
-        /// <param name="config">Fill configuration</param>
-        /// <returns>Preview summary with estimated counts</returns>
-        PreviewSummary PreviewFill(Document document, FillConfiguration config);
-
-        /// <summary>
         /// Executes parameter fill operation with progress reporting
         /// </summary>
         /// <param name="document">Revit document</param>

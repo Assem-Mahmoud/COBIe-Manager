@@ -55,6 +55,16 @@ namespace COBIeManager.Shared.Models
         public int MembersSkippedNestedGroup { get; set; }
 
         /// <summary>
+        /// Members filled with NotAssignedValue (N/A) because they are not in any group
+        /// </summary>
+        public int MembersFilledWithNA { get; set; }
+
+        /// <summary>
+        /// Elements from selected categories that are not in any group
+        /// </summary>
+        public int MembersNotInGroup { get; set; }
+
+        /// <summary>
         /// Group elements updated (when includeGroupElement=true)
         /// </summary>
         public int GroupElementsUpdated { get; set; }
@@ -120,6 +130,30 @@ namespace COBIeManager.Shared.Models
                 SkippedElementIds[skipReason] = new List<int>();
             }
             SkippedElementIds[skipReason].Add(elementId);
+        }
+
+        /// <summary>
+        /// Gets all processed element IDs (both updated and skipped)
+        /// </summary>
+        /// <returns>Set of element IDs that were processed</returns>
+        public HashSet<int> GetProcessedElementIds()
+        {
+            var processedIds = new HashSet<int>();
+
+            // Add all IDs from skipped elements
+            foreach (var kvp in SkippedElementIds)
+            {
+                foreach (var id in kvp.Value)
+                {
+                    processedIds.Add(id);
+                }
+            }
+
+            // Note: We don't have a direct list of updated elements in the summary
+            // The caller will need to track updated elements separately
+            // This method returns the skipped elements which we don't want to fill with N/A
+
+            return processedIds;
         }
 
         /// <summary>

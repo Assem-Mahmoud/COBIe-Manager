@@ -11,6 +11,12 @@ namespace COBIeManager.Shared.Interfaces
     public interface IRoomAssignmentService
     {
         /// <summary>
+        /// Clears the room cache. Call this before starting a new fill operation
+        /// to ensure fresh data is used.
+        /// </summary>
+        void ClearCache();
+
+        /// <summary>
         /// Gets room associated with an element using specified detection method
         /// </summary>
         /// <param name="element">Element to find room for</param>
@@ -28,12 +34,14 @@ namespace COBIeManager.Shared.Interfaces
         /// <param name="sourceDocument">Document to search for rooms (can be linked document)</param>
         /// <param name="detectionMethod">Room detection method</param>
         /// <param name="coordinateTransform">Optional transform from host to source document space</param>
+        /// <param name="tolerance">Optional tolerance in feet to expand room bounding box for detection</param>
         /// <returns>Room object if found, null otherwise</returns>
         Room GetRoomForElement(
             Element element,
             Document sourceDocument,
             RoomDetectionMethod detectionMethod,
-            Transform coordinateTransform = null);
+            Transform coordinateTransform = null,
+            double tolerance = 0.0);
 
         /// <summary>
         /// Assigns room parameters to an element

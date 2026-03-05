@@ -42,243 +42,6 @@ namespace COBIeManager.Shared.Services
         }
 
         /// <summary>
-        /// Analyzes elements and returns preview summary without modifying document
-        /// </summary>
-        /// <param name="document">Revit document</param>
-        /// <param name="config">Fill configuration</param>
-        /// <returns>Preview summary with estimated counts</returns>
-        public PreviewSummary PreviewFill(Document document, FillConfiguration config)
-        {
-            if (document == null)
-            {
-                throw new ArgumentNullException(nameof(document));
-            }
-
-            if (config == null)
-            {
-                throw new ArgumentNullException(nameof(config));
-            }
-
-            _logger.Info($"Starting preview analysis (FillMode: {config.FillMode})");
-
-            var summary = new PreviewSummary();
-
-            // Validate configuration
-            if (!config.IsValid())
-            {
-                var error = config.GetValidationError();
-                summary.AddValidationWarning(error ?? "Invalid configuration");
-                _logger.Warn($"Preview configuration invalid: {error}");
-                return summary;
-            }
-
-            // Check which modes are selected using bitwise operations
-            bool hasLevelMode = (config.FillMode & FillMode.Level) != 0;
-            bool hasRoomNameMode = (config.FillMode & FillMode.RoomName) != 0;
-            bool hasRoomNumberMode = (config.FillMode & FillMode.RoomNumber) != 0;
-            bool hasGroupsMode = (config.FillMode & FillMode.Groups) != 0;
-            bool hasScopeBoxMode = (config.FillMode & FillMode.ScopeBox) != 0;
-            bool hasZoneMode = (config.FillMode & FillMode.Zone) != 0;
-
-            // Process room name preview if mode is selected and parameters are mapped
-            if (hasRoomNameMode && config.GetRoomNameModeParameters().Count > 0)
-            {
-                var roomPreview = _roomFillService.PreviewFill(document, config);
-                summary.EstimatedElementsToProcess += roomPreview.EstimatedElementsToProcess;
-                summary.EstimatedRoomAssignments += roomPreview.EstimatedRoomsFound;
-
-                foreach (var warning in roomPreview.ValidationWarnings)
-                {
-                    summary.AddValidationWarning(warning);
-                }
-
-                foreach (var category in roomPreview.CategoriesWithNoElements)
-                {
-                    summary.AddEmptyCategory(category);
-                }
-
-                _logger.Info($"RoomName mode preview: {roomPreview.EstimatedRoomsFound} elements with rooms");
-            }
-
-            // Process room number preview if mode is selected and parameters are mapped
-            if (hasRoomNumberMode && config.GetRoomNumberModeParameters().Count > 0)
-            {
-                var roomPreview = _roomFillService.PreviewFill(document, config);
-                summary.EstimatedElementsToProcess += roomPreview.EstimatedElementsToProcess;
-                summary.EstimatedRoomAssignments += roomPreview.EstimatedRoomsFound;
-
-                foreach (var warning in roomPreview.ValidationWarnings)
-                {
-                    summary.AddValidationWarning(warning);
-                }
-
-                foreach (var category in roomPreview.CategoriesWithNoElements)
-                {
-                    summary.AddEmptyCategory(category);
-                }
-
-                _logger.Info($"RoomNumber mode preview: {roomPreview.EstimatedRoomsFound} elements with rooms");
-            }
-
-            // Process groups preview if mode is selected and parameters are mapped
-            if (hasGroupsMode && config.GetGroupModeParameters().Count > 0)
-            {
-                var boxIdPreview = _boxIdFillService.PreviewFill(document, config);
-                summary.EstimatedElementsToProcess += boxIdPreview.EstimatedMembersToProcess;
-                _logger.Info($"Groups mode preview: {boxIdPreview.EstimatedGroupsToProcess} group instances, {boxIdPreview.EstimatedMembersToProcess} members to process");
-            }
-
-            // Process scope box preview if mode is selected and parameters are mapped
-            if (hasScopeBoxMode && config.GetScopeBoxModeParameters().Count > 0)
-            {
-                var scopeBoxPreview = _scopeBoxAssignmentService.PreviewFill(document, config);
-                summary.EstimatedElementsToProcess += scopeBoxPreview.ElementsFound;
-
-                if (scopeBoxPreview.Errors > 0)
-                {
-                    foreach (var error in scopeBoxPreview.ErrorMessages)
-                    {
-                        summary.AddValidationWarning(error);
-                    }
-                }
-
-                _logger.Info($"ScopeBox mode preview: {scopeBoxPreview.ElementsFound} elements in scope box, {scopeBoxPreview.ParametersFilled} parameters to fill");
-            }
-
-            // Process zone preview if mode is selected and parameters are mapped
-            if (hasZoneMode && config.GetZoneModeParameters().Count > 0)
-            {
-                var zonePreview = _zoneAssignmentService.PreviewFill(document, config);
-                summary.EstimatedElementsToProcess += zonePreview.ElementsFound;
-
-                if (zonePreview.Errors > 0)
-                {
-                    foreach (var error in zonePreview.ErrorMessages)
-                    {
-                        summary.AddValidationWarning(error);
-                    }
-                }
-
-                _logger.Info($"Zone mode preview: {zonePreview.ElementsFound} elements in zone, {zonePreview.ParametersFilled} parameters to fill");
-            }
-
-            // Process level preview if mode is selected and parameters are mapped
-            if (hasLevelMode && config.GetLevelModeParameters().Count > 0)
-            {
-                var elements = CollectElements(document, config, summary);
-
-                if (elements.Any())
-                {
-                    _logger.Info($"Previewing {elements.Count} elements for level mode");
-
-                    // Sort selected levels by elevation
-                    var sortedLevels = config.LevelMode.SelectedLevels
-                        .OrderBy(l => l.Elevation)
-                        .ToList();
-
-                    if (sortedLevels.Count < 2)
-                    {
-                        summary.AddValidationWarning("At least 2 levels must be selected for level mode");
-                        return summary;
-                    }
-
-                    int inBandCount = 0;
-                    int inBandByCenterCount = 0;
-                    int nearestLevelCount = 0;
-                    int belowLowestCount = 0;
-                    int aboveHighestCount = 0;
-
-                    foreach (var element in elements)
-                    {
-                        // Check if element category is excluded
-                        bool isExcludedCategory = false;
-                        if (element.Category != null && config.LevelMode.ExcludedCategories != null)
-                        {
-                            var categoryId = (BuiltInCategory)element.Category.Id.IntegerValue;
-                            isExcludedCategory = config.LevelMode.ExcludedCategories.Contains(categoryId);
-                        }
-
-                        Level assignedLevel = null;
-
-                        if (isExcludedCategory)
-                        {
-                            // Use nearest level logic across all selected levels
-                            assignedLevel = _levelAssignmentService.FindNearestLevelAmong(
-                                element,
-                                sortedLevels);
-                            if (assignedLevel != null)
-                            {
-                                nearestLevelCount++;
-                            }
-                        }
-                        else
-                        {
-                            // Process through consecutive ranges
-                            assignedLevel = ProcessLevelRanges(element, sortedLevels);
-
-                            if (assignedLevel != null)
-                            {
-                                // Check if it's an edge case (below lowest or above highest)
-                                if (assignedLevel.Id == sortedLevels.First().Id)
-                                {
-                                    var position = _levelAssignmentService.GetElementPositionInBand(
-                                        element,
-                                        sortedLevels[0],
-                                        sortedLevels[1]);
-
-                                    if (position == LevelBandPosition.BelowBand)
-                                    {
-                                        belowLowestCount++;
-                                    }
-                                    else if (position == LevelBandPosition.InBand)
-                                    {
-                                        inBandCount++;
-                                    }
-                                    else if (position == LevelBandPosition.InBandByCenter)
-                                    {
-                                        inBandByCenterCount++;
-                                    }
-                                }
-                                else if (assignedLevel.Id == sortedLevels.Last().Id)
-                                {
-                                    var position = _levelAssignmentService.GetElementPositionInBand(
-                                        element,
-                                        sortedLevels[sortedLevels.Count - 2],
-                                        sortedLevels[sortedLevels.Count - 1]);
-
-                                    if (position == LevelBandPosition.AboveBand)
-                                    {
-                                        aboveHighestCount++;
-                                    }
-                                    else if (position == LevelBandPosition.InBand)
-                                    {
-                                        inBandCount++;
-                                    }
-                                    else if (position == LevelBandPosition.InBandByCenter)
-                                    {
-                                        inBandByCenterCount++;
-                                    }
-                                }
-                                else
-                                {
-                                    // In a middle range
-                                    inBandCount++;
-                                }
-                            }
-                        }
-                    }
-
-                    summary.EstimatedElementsToProcess += inBandCount + inBandByCenterCount + nearestLevelCount + belowLowestCount + aboveHighestCount;
-                    _logger.Info($"Level mode preview: {inBandCount} fully in band, {inBandByCenterCount} by center, {nearestLevelCount} nearest level, {belowLowestCount} below lowest, {aboveHighestCount} above highest");
-                }
-            }
-
-            _logger.Info($"Preview complete: {summary.EstimatedElementsToProcess} elements to process");
-
-            return summary;
-        }
-
-        /// <summary>
         /// Executes parameter fill operation with progress reporting
         /// </summary>
         /// <param name="document">Revit document</param>
@@ -464,7 +227,9 @@ namespace COBIeManager.Shared.Services
                                     }
                                     else
                                     {
-                                        processingLogger.LogSkip(element.Id, element.Category?.Name, SkipReasons.NoNearestLevel);
+                                        // No nearest level found - fill with NotAssignedValue
+                                        FillWithNotAssignedValue(element, selectedParameters, config.LevelMode.NotAssignedValue ?? "N/A", config.OverwriteExisting, processingLogger, ref parametersFilled);
+                                        totalSucessElements.Add(element.Id);
                                     }
                                 }
                                 else
@@ -506,7 +271,9 @@ namespace COBIeManager.Shared.Services
                                     }
                                     else
                                     {
-                                        processingLogger.LogSkip(element.Id, element.Category?.Name, SkipReasons.OutsideAllRanges);
+                                        // Outside all ranges - fill with NotAssignedValue
+                                        FillWithNotAssignedValue(element, selectedParameters, config.LevelMode.NotAssignedValue ?? "N/A", config.OverwriteExisting, processingLogger, ref parametersFilled);
+                                        totalSucessElements.Add(element.Id);
                                     }
                                 }
                             }                           
@@ -645,6 +412,51 @@ namespace COBIeManager.Shared.Services
 
             // Fall back to Revit level name
             return level.Name;
+        }
+
+        /// <summary>
+        /// Fills element parameters with NotAssignedValue when element doesn't match any filter criteria.
+        /// </summary>
+        /// <param name="element">Element to fill</param>
+        /// <param name="selectedParameters">Parameters to fill</param>
+        /// <param name="notAssignedValue">Value to use (e.g., "N/A")</param>
+        /// <param name="overwriteExisting">Whether to overwrite existing values</param>
+        /// <param name="processingLogger">Logger for tracking results</param>
+        /// <param name="parametersFilled">Reference to count filled parameters</param>
+        private void FillWithNotAssignedValue(
+            Element element,
+            IList<string> selectedParameters,
+            string notAssignedValue,
+            bool overwriteExisting,
+            ProcessingLogger processingLogger,
+            ref int parametersFilled)
+        {
+            int filledCount = 0;
+            foreach (var paramName in selectedParameters)
+            {
+                var result = _levelAssignmentService.AssignLevelParameter(
+                    element,
+                    notAssignedValue,
+                    processingLogger,
+                    paramName,
+                    overwriteExisting);
+
+                if (result.Success)
+                {
+                    parametersFilled++;
+                    filledCount++;
+                }
+            }
+
+            if (filledCount > 0)
+            {
+                _logger.Debug($"Element {element.Id}: Filled {filledCount} parameters with '{notAssignedValue}'");
+                processingLogger.LogSuccess(element.Id, element.Category?.Name, $"Filled {filledCount} parameters with '{notAssignedValue}'");
+            }
+            else
+            {
+                _logger.Debug($"Element {element.Id}: Could not fill any parameters with '{notAssignedValue}'");
+            }
         }
     }
 }

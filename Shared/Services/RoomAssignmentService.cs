@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Architecture;
@@ -16,9 +17,85 @@ namespace COBIeManager.Shared.Services
     {
         private readonly ILogger _logger;
 
+        // Cache for rooms to avoid repeated collection
+        private Dictionary<Document, RoomCache> _roomCache = new Dictionary<Document, RoomCache>();
+
         public RoomAssignmentService(ILogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        /// <summary>
+        /// Clears the room cache. Call this when switching documents or before starting a new operation.
+        /// </summary>
+        public void ClearCache()
+        {
+            _roomCache.Clear();
+        }
+
+        /// <summary>
+        /// Clears the room cache for a specific document.
+        /// </summary>
+        public void ClearCache(Document document)
+        {
+            if (document != null && _roomCache.ContainsKey(document))
+            {
+                _roomCache.Remove(document);
+            }
+        }
+
+        /// <summary>
+        /// Internal cache class for storing room data
+        /// </summary>
+        private class RoomCache
+        {
+            public List<Room> AllRooms { get; set; }
+            public Dictionary<XYZ, List<RoomWithDistance>> SpatialIndex { get; set; }
+            public DateTime Created { get; set; }
+            public Document Document { get; set; }
+
+            public RoomCache(List<Room> rooms, Document doc)
+            {
+                AllRooms = rooms;
+                Document = doc;
+                Created = DateTime.Now;
+                SpatialIndex = new Dictionary<XYZ, List<RoomWithDistance>>(new XYZComparer());
+            }
+        }
+
+        /// <summary>
+        /// Helper class to store room with distance information
+        /// </summary>
+        private class RoomWithDistance
+        {
+            public Room Room { get; set; }
+            public XYZ Center { get; set; }
+            public BoundingBoxXYZ BoundingBox { get; set; }
+        }
+
+        /// <summary>
+        /// Custom comparer for XYZ to use as dictionary key
+        /// </summary>
+        private class XYZComparer : IEqualityComparer<XYZ>
+        {
+            private const double Tolerance = 0.01; // Grid cell size in feet
+
+            public bool Equals(XYZ a, XYZ b)
+            {
+                if (a == null || b == null) return false;
+                return Math.Abs(a.X - b.X) < Tolerance &&
+                       Math.Abs(a.Y - b.Y) < Tolerance &&
+                       Math.Abs(a.Z - b.Z) < Tolerance;
+            }
+
+            public int GetHashCode(XYZ obj)
+            {
+                if (obj == null) return 0;
+                int x = (int)(obj.X / Tolerance);
+                int y = (int)(obj.Y / Tolerance);
+                int z = (int)(obj.Z / Tolerance);
+                return (x * 31 + y) * 31 + z;
+            }
         }
 
         /// <summary>
@@ -47,12 +124,14 @@ namespace COBIeManager.Shared.Services
         /// <param name="sourceDocument">Document to search for rooms (can be linked document)</param>
         /// <param name="detectionMethod">Room detection method</param>
         /// <param name="coordinateTransform">Optional transform from host to source document space</param>
+        /// <param name="tolerance">Optional tolerance in feet to expand room bounding box for detection</param>
         /// <returns>Room object if found, null otherwise</returns>
         public Room GetRoomForElement(
             Element element,
             Document sourceDocument,
             RoomDetectionMethod detectionMethod,
-            Transform coordinateTransform = null)
+            Transform coordinateTransform = null,
+            double tolerance = 0.0)
         {
             if (element == null)
             {
@@ -117,15 +196,25 @@ namespace COBIeManager.Shared.Services
                         _logger.Debug($"Element {element.Id}: Transformed point from ({point.X}, {point.Y}, {point.Z}) to ({searchPoint.X}, {searchPoint.Y}, {searchPoint.Z})");
                     }
 
+                    // Try exact GetRoomAtPoint first
                     var room = sourceDocument.GetRoomAtPoint(searchPoint);
                     if (room != null)
                     {
                         _logger.Debug($"Element {element.Id}: Room found via GetRoomAtPoint - '{room.Number}: {room.Name}'");
                         return room;
                     }
-                    else
+
+                    _logger.Debug($"Element {element.Id}: No room found at point ({searchPoint.X}, {searchPoint.Y}, {searchPoint.Z})");
+
+                    // Fallback: use tolerance-based room detection
+                    if (tolerance > 0.0)
                     {
-                        _logger.Debug($"Element {element.Id}: No room found at point ({searchPoint.X}, {searchPoint.Y}, {searchPoint.Z})");
+                        room = FindRoomWithTolerance(element, sourceDocument, searchPoint, tolerance);
+                        if (room != null)
+                        {
+                            _logger.Debug($"Element {element.Id}: Room found via tolerance search - '{room.Number}: {room.Name}'");
+                            return room;
+                        }
                     }
                 }
                 else
@@ -234,6 +323,87 @@ namespace COBIeManager.Shared.Services
                     (bbox.Min.Z + bbox.Max.Z) / 2
                 );
                 return center;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds a room using tolerance-based bounding box expansion.
+        /// This is useful for detecting elements hosted in walls (like electrical sockets)
+        /// or elements just outside room boundaries.
+        /// </summary>
+        /// <param name="element">Element to find room for</param>
+        /// <param name="sourceDocument">Document to search for rooms</param>
+        /// <param name="searchPoint">Point to search from (in source document space)</param>
+        /// <param name="tolerance">Tolerance in feet to expand room bounding boxes</param>
+        /// <returns>Room if found, null otherwise</returns>
+        private Room FindRoomWithTolerance(Element element, Document sourceDocument, XYZ searchPoint, double tolerance)
+        {
+            if (tolerance <= 0.0)
+                return null;
+
+            try
+            {
+                // Collect all rooms in the source document
+                var rooms = new FilteredElementCollector(sourceDocument)
+                    .WhereElementIsNotElementType()
+                    .OfCategory(BuiltInCategory.OST_Rooms)
+                    .OfType<Room>()
+                    .Where(r => r.Area > 0 && r.Location != null)
+                    .ToList();
+
+                if (!rooms.Any())
+                {
+                    _logger.Debug($"FindRoomWithTolerance: No rooms found in source document");
+                    return null;
+                }
+
+                // Find rooms whose expanded bounding box contains the search point
+                var candidates = new List<(Room room, double distance)>();
+
+                foreach (var room in rooms)
+                {
+                    var roomBbox = room.get_BoundingBox(null);
+                    if (roomBbox == null)
+                        continue;
+
+                    // Expand bounding box by tolerance
+                    bool inExpandedBbox =
+                        searchPoint.X >= roomBbox.Min.X - tolerance &&
+                        searchPoint.X <= roomBbox.Max.X + tolerance &&
+                        searchPoint.Y >= roomBbox.Min.Y - tolerance &&
+                        searchPoint.Y <= roomBbox.Max.Y + tolerance &&
+                        searchPoint.Z >= roomBbox.Min.Z - tolerance &&
+                        searchPoint.Z <= roomBbox.Max.Z + tolerance;
+
+                    if (inExpandedBbox)
+                    {
+                        // Calculate distance to room center for ranking
+                        var roomCenter = new XYZ(
+                            (roomBbox.Min.X + roomBbox.Max.X) / 2,
+                            (roomBbox.Min.Y + roomBbox.Max.Y) / 2,
+                            (roomBbox.Min.Z + roomBbox.Max.Z) / 2
+                        );
+                        var distance = searchPoint.DistanceTo(roomCenter);
+                        candidates.Add((room, distance));
+                        _logger.Debug($"FindRoomWithTolerance: Room '{room.Number}: {room.Name}' is within tolerance (distance: {distance:F2} ft)");
+                    }
+                }
+
+                if (candidates.Any())
+                {
+                    // Return the closest room
+                    var closest = candidates.OrderBy(c => c.distance).First();
+                    _logger.Debug($"FindRoomWithTolerance: Selected closest room '{closest.room.Number}: {closest.room.Name}' at distance {closest.distance:F2} ft");
+                    return closest.room;
+                }
+
+                _logger.Debug($"FindRoomWithTolerance: No rooms found within tolerance {tolerance:F2} ft");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"FindRoomWithTolerance: Error searching for rooms with tolerance", ex);
             }
 
             return null;

@@ -19,6 +19,12 @@ namespace COBIeManager.Shared.Models
         public bool IsEnabled { get; set; }
 
         /// <summary>
+        /// The value to use for elements that don't match the filter criteria.
+        /// Default is "N/A" to indicate that the element is not associated with any room, level, group, etc.
+        /// </summary>
+        public string NotAssignedValue { get; set; } = "N/A";
+
+        /// <summary>
         /// Validates the configuration for this fill mode
         /// </summary>
         /// <returns>True if configuration is valid, false otherwise</returns>

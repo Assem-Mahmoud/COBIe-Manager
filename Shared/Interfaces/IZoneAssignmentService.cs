@@ -125,6 +125,16 @@ namespace COBIeManager.Shared.Interfaces
         public string FillValue { get; set; }
 
         /// <summary>
+        /// Elements not in any zone that were filled with NotAssignedValue
+        /// </summary>
+        public int ElementsNotInZone { get; set; }
+
+        /// <summary>
+        /// Parameters filled with NotAssignedValue for elements not in any zone
+        /// </summary>
+        public int ParametersFilledWithNA { get; set; }
+
+        /// <summary>
         /// Time taken for the operation
         /// </summary>
         public TimeSpan ProcessingDuration { get; set; }

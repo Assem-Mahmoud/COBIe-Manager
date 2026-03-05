@@ -83,4 +83,54 @@ namespace COBIeManager.Shared.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Converter that shows content only when the mode is RoomName and is selected.
+    /// Used for Room Name mode-specific settings panels.
+    /// </summary>
+    public class RoomNameOnlyVisibilityConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length >= 2 && values[0] is bool isSelected && values[1] is FillMode mode)
+            {
+                // Show ONLY for RoomName mode when selected
+                if (isSelected && mode == FillMode.RoomName)
+                {
+                    return Visibility.Visible;
+                }
+            }
+            return Visibility.Collapsed;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Converter that shows content only when the mode is RoomNumber and is selected.
+    /// Used for Room Number mode-specific settings panels.
+    /// </summary>
+    public class RoomNumberOnlyVisibilityConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length >= 2 && values[0] is bool isSelected && values[1] is FillMode mode)
+            {
+                // Show ONLY for RoomNumber mode when selected
+                if (isSelected && mode == FillMode.RoomNumber)
+                {
+                    return Visibility.Visible;
+                }
+            }
+            return Visibility.Collapsed;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

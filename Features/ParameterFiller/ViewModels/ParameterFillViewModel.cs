@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Threading;
 using Autodesk.Revit.DB;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,6 +14,7 @@ using COBIeManager.Shared.DependencyInjection;
 using COBIeManager.Shared.Interfaces;
 using COBIeManager.Shared.Models;
 using COBIeManager.Shared.Services;
+using Revit.Async;
 
 namespace COBIeManager.Features.ParameterFiller.ViewModels
 {
@@ -22,12 +25,11 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
     {
         private readonly IParameterFillService _parameterFillService;
         private readonly Autodesk.Revit.UI.UIDocument _uiDoc;
+        private readonly Dispatcher _dispatcher;
+        private System.Windows.Threading.DispatcherTimer _uiHeartbeatTimer;
 
         [ObservableProperty]
         private FillConfiguration _config;
-
-        [ObservableProperty]
-        private PreviewSummary _previewSummary;
 
         [ObservableProperty]
         private string _statusMessage = "Ready";
@@ -58,13 +60,9 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         public ICollectionView FilteredParameters { get; }
 
         // Computed properties
-        public bool HasPreview => PreviewSummary != null;
         public bool HasUnmappedParameters => AvailableParameters?.Any(p => p.IsSelected && !p.IsMapped) ?? false;
         public bool HasSelectedFillModes => AvailableFillModes?.Any(m => m.IsSelected) ?? false;
-        public bool CanExecutePreview => Config != null && HasSelectedFillModes && !IsProcessing;
         public bool CanExecuteFill => Config != null && HasSelectedFillModes && !IsProcessing && !HasUnmappedParameters;
-        public bool HasValidationWarning => PreviewSummary != null && PreviewSummary.HasValidationWarnings;
-        public string PreviewStatusMessage => PreviewSummary?.GetStatusMessage() ?? "Run preview to see estimated counts";
 
         // Category selection counts
         public int SelectedCategoryCount => AvailableCategories?.Count(c => c.IsSelected) ?? 0;
@@ -84,6 +82,18 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 throw new ArgumentNullException(nameof(uiDoc));
 
             _uiDoc = uiDoc;
+            _dispatcher = Dispatcher.CurrentDispatcher;
+
+            // Setup UI heartbeat timer to keep animations running during heavy operations
+            _uiHeartbeatTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS
+            };
+            _uiHeartbeatTimer.Tick += (s, e) =>
+            {
+                // This empty event handler keeps the dispatcher processing messages
+                // which allows animations to continue
+            };
 
             // Get services from ServiceLocator
             _parameterFillService = ServiceLocator.GetService<IParameterFillService>()
@@ -138,13 +148,11 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     {
                         OnPropertyChanged(nameof(SelectedFillModeCount));
                         OnPropertyChanged(nameof(HasSelectedFillModes));
-                        OnPropertyChanged(nameof(CanExecutePreview));
                         OnPropertyChanged(nameof(CanExecuteFill));
                     }
                     else if (e.PropertyName == nameof(FillModeItem.MappedParameterCount))
                     {
                         OnPropertyChanged(nameof(HasSelectedFillModes));
-                        OnPropertyChanged(nameof(CanExecutePreview));
                         OnPropertyChanged(nameof(CanExecuteFill));
                     }
                 };
@@ -192,9 +200,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         {
             if (value != null)
             {
-                // Reset preview when config changes
-                PreviewSummary = new PreviewSummary();
-
                 // Update status message based on validation
                 if (!value.IsValid())
                 {
@@ -203,23 +208,11 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 }
                 else
                 {
-                    StatusMessage = "Ready to preview";
+                    StatusMessage = "Ready";
                 }
 
-                OnPropertyChanged(nameof(CanExecutePreview));
                 OnPropertyChanged(nameof(CanExecuteFill));
-                OnPropertyChanged(nameof(HasValidationWarning));
             }
-        }
-
-        /// <summary>
-        /// Called when PreviewSummary property changes
-        /// </summary>
-        partial void OnPreviewSummaryChanged(PreviewSummary value)
-        {
-            OnPropertyChanged(nameof(HasPreview));
-            OnPropertyChanged(nameof(HasValidationWarning));
-            OnPropertyChanged(nameof(PreviewStatusMessage));
         }
 
         /// <summary>
@@ -227,7 +220,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         /// </summary>
         partial void OnIsProcessingChanged(bool value)
         {
-            OnPropertyChanged(nameof(CanExecutePreview));
             OnPropertyChanged(nameof(CanExecuteFill));
         }
 
@@ -679,15 +671,19 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_Floors,
                     BuiltInCategory.OST_Ceilings,
                     BuiltInCategory.OST_Roofs,
-                    BuiltInCategory.OST_Doors,
-                    BuiltInCategory.OST_Windows,
+                    BuiltInCategory.OST_RoofSoffit,
                     BuiltInCategory.OST_CurtainWallPanels,
                     BuiltInCategory.OST_CurtainWallMullions,
+
+                    BuiltInCategory.OST_Doors,
+                    BuiltInCategory.OST_Windows,
 
                     // === Stairs, Ramps, Railings ===
                     BuiltInCategory.OST_Stairs,
                     BuiltInCategory.OST_Ramps,
                     BuiltInCategory.OST_Railings,
+                    BuiltInCategory.OST_StairsRailing,
+
 
                     // === Structural ===
                     BuiltInCategory.OST_StructuralColumns,
@@ -696,10 +692,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_StructuralFoundation,
                     BuiltInCategory.OST_StructuralTruss,
 
-                    // === Rebar & Reinforcement ===
-                    BuiltInCategory.OST_Rebar,
-                    BuiltInCategory.OST_FabricReinforcement,
-                    BuiltInCategory.OST_FabricAreas,
+
 
                     // === MEP - Mechanical ===
                     BuiltInCategory.OST_MechanicalEquipment,
@@ -710,6 +703,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_DuctInsulations,
                     BuiltInCategory.OST_DuctLinings,
 
+
                     // === MEP - Plumbing ===
                     BuiltInCategory.OST_PlumbingFixtures,
                     BuiltInCategory.OST_PipeCurves,
@@ -717,6 +711,12 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_PipeAccessory,
                     BuiltInCategory.OST_PipeInsulations,
                     BuiltInCategory.OST_FlexPipeCurves,
+                    BuiltInCategory.OST_PipeSegments,
+
+                    // === MEP - Fire Protection ===
+                    BuiltInCategory.OST_Sprinklers,
+                    BuiltInCategory.OST_FireAlarmDevices,
+                    BuiltInCategory.OST_FireProtection,
 
                     // === MEP - Electrical ===
                     BuiltInCategory.OST_ElectricalEquipment,
@@ -724,18 +724,17 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_LightingFixtures,
                     BuiltInCategory.OST_LightingDevices,
                     BuiltInCategory.OST_ElectricalCircuit,
+                    BuiltInCategory.OST_Wire,
 
                     // === MEP - Cable Tray ===
                     BuiltInCategory.OST_CableTray,
                     BuiltInCategory.OST_CableTrayFitting,
+                    BuiltInCategory.OST_CableTrayRun,
 
                     // === MEP - Conduit ===
                     BuiltInCategory.OST_Conduit,
                     BuiltInCategory.OST_ConduitFitting,
-
-                    // === MEP - Fire Protection ===
-                    BuiltInCategory.OST_Sprinklers,
-                    BuiltInCategory.OST_FireAlarmDevices,
+                    BuiltInCategory.OST_ConduitRun,
 
                     // === MEP - Communication ===
                     BuiltInCategory.OST_CommunicationDevices,
@@ -743,6 +742,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     BuiltInCategory.OST_TelephoneDevices,
                     BuiltInCategory.OST_NurseCallDevices,
                     BuiltInCategory.OST_SecurityDevices,
+
 
                     // === Speciality ===
                     BuiltInCategory.OST_SpecialityEquipment,
@@ -791,14 +791,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     // === Trusses ===
                     BuiltInCategory.OST_Truss,
 
-                    // === Detail Items ===
-                    BuiltInCategory.OST_DetailComponents,
-
-                    // === Fascia & Gutters ===
-                    BuiltInCategory.OST_Fascia,
-
-                    // === Roof Soffit ===
-                    BuiltInCategory.OST_RoofSoffit
                 };
 
                 foreach (var category in modelCategories)
@@ -809,18 +801,12 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         var cat = Category.GetCategory(doc, category);
                         if (cat == null) continue;
 
-                        // Count elements in this category
-                        var elementCount = new FilteredElementCollector(doc)
-                            .WhereElementIsNotElementType()
-                            .WhereElementIsViewIndependent()
-                            .OfCategory(category)
-                            .GetElementCount();
-
+                        // Create category item
                         var categoryItem = new CategoryItem(
                             category,
                             cat.Name,
-                            elementCount,
-                            isSelected: elementCount > 0); // Auto-select if elements exist
+                            0,
+                            isSelected: false);
 
                         // Subscribe to property changes to update counts
                         categoryItem.PropertyChanged += (s, e) =>
@@ -956,13 +942,11 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                         {
                             OnPropertyChanged(nameof(SelectedParameterCount));
                             OnPropertyChanged(nameof(HasUnmappedParameters));
-                            OnPropertyChanged(nameof(CanExecutePreview));
                             OnPropertyChanged(nameof(CanExecuteFill));
                         }
                         else if (e.PropertyName == nameof(ParameterItem.IsMapped))
                         {
                             OnPropertyChanged(nameof(HasUnmappedParameters));
-                            OnPropertyChanged(nameof(CanExecutePreview));
                             OnPropertyChanged(nameof(CanExecuteFill));
                         }
                     };
@@ -1048,7 +1032,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             OnPropertyChanged(nameof(SelectedParameterCount));
             OnPropertyChanged(nameof(HasUnmappedParameters));
-            OnPropertyChanged(nameof(CanExecutePreview));
             OnPropertyChanged(nameof(CanExecuteFill));
         }
 
@@ -1065,7 +1048,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
             OnPropertyChanged(nameof(SelectedParameterCount));
             OnPropertyChanged(nameof(HasUnmappedParameters));
-            OnPropertyChanged(nameof(CanExecutePreview));
             OnPropertyChanged(nameof(CanExecuteFill));
         }
 
@@ -1162,7 +1144,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                 StatusMessage = "Opening mapping dialog...";
 
                 var mappingWindow = new Views.ParameterMappingWindow(selectedParams);
-           
+
 
                 var result = mappingWindow.ShowDialog();
 
@@ -1173,7 +1155,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
                     // Update validation state
                     OnPropertyChanged(nameof(HasUnmappedParameters));
-                    OnPropertyChanged(nameof(CanExecutePreview));
                     OnPropertyChanged(nameof(CanExecuteFill));
                     StatusMessage = $"Mapped {selectedParams.Count} parameters successfully";
                 }
@@ -1201,76 +1182,6 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     "Error",
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
-            }
-        }
-
-        /// <summary>
-        /// Executes the preview command
-        /// </summary>
-        [RelayCommand(CanExecute = nameof(CanExecutePreview))]
-        private void Preview()
-        {
-            try
-            {
-                IsProcessing = true;
-                StatusMessage = "Running preview...";
-
-                // Show loading overlay
-                LoadingOverlayService.Show("Running Preview", "Analyzing elements and parameters...");
-
-                // Update configuration with selected categories and parameters
-                UpdateConfigWithSelectedCategories();
-
-                // Sync selected FillModeItems to Config.FillMode
-                SyncSelectedFillModesToConfig();
-
-                // Now check validity
-                if (Config == null || !Config.IsValid())
-                {
-                    StatusMessage = "Please fix configuration errors before previewing";
-                    if (Config != null && !Config.IsValid())
-                    {
-                        StatusMessage = $"Configuration error: {Config.GetValidationError()}";
-                    }
-                    IsProcessing = false;
-                    LoadingOverlayService.Hide();
-                    return;
-                }
-
-                if (_uiDoc?.Document == null)
-                {
-                    StatusMessage = "No document available";
-                    IsProcessing = false;
-                    LoadingOverlayService.Hide();
-                    return;
-                }
-
-                // Run preview via ParameterFillService
-                var summary = _parameterFillService.PreviewFill(_uiDoc.Document, Config);
-
-                PreviewSummary = summary;
-
-                if (summary.HasValidationWarnings)
-                {
-                    StatusMessage = $"Preview complete with {summary.ValidationWarnings.Count} warning(s)";
-                }
-                else if (summary.HasElementsToProcess)
-                {
-                    StatusMessage = $"Preview complete: {summary.EstimatedElementsToProcess} elements to process";
-                }
-                else
-                {
-                    StatusMessage = "Preview complete: No elements found to process";
-                }
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = $"Preview failed: {ex.Message}";
-            }
-            finally
-            {
-                IsProcessing = false;
-                LoadingOverlayService.Hide();
             }
         }
 
@@ -1325,7 +1236,7 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
         /// Executes the fill command
         /// </summary>
         [RelayCommand]
-        private void Fill()
+        private async void Fill()
         {
             try
             {
@@ -1334,6 +1245,9 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
 
                 // Show loading overlay
                 LoadingOverlayService.Show("Applying Parameters", "Starting fill operation...");
+
+                // Give UI time to render the overlay
+                await Task.Delay(50);
 
                 // Update configuration with selected categories and parameters
                 UpdateConfigWithSelectedCategories();
@@ -1373,30 +1287,38 @@ namespace COBIeManager.Features.ParameterFiller.ViewModels
                     return;
                 }
 
-                // Run fill operation via ParameterFillService with progress callback
-                var summary = _parameterFillService.ExecuteFill(
-                    _uiDoc.Document,
-                    Config,
-                    (current, message) =>
-                    {
-                        StatusMessage = message;
-                        LoadingOverlayService.UpdateMessage("Applying Parameters", message);
-                    });
+                // Run fill operation via RevitTask - this executes on Revit thread without blocking UI
+                // Start heartbeat timer to keep animations running
+                _uiHeartbeatTimer.Start();
+
+                var summary = await RevitTask.RunAsync(() =>
+                {
+                    return _parameterFillService.ExecuteFill(
+                        _uiDoc.Document,
+                        Config,
+                        (current, message) =>
+                        {
+                            // Update UI on dispatcher thread
+                            _dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                StatusMessage = message;
+                                LoadingOverlayService.UpdateMessage("Applying Parameters", message);
+                            }), System.Windows.Threading.DispatcherPriority.Background);
+                        });
+                });
 
                 // Display results
-                var resultMessage = summary.ToFormattedString();
-               
-
                 StatusMessage = $"Filled {summary.LevelParametersFilled} level parameters " +
                               $"in {summary.ProcessingDuration.TotalSeconds:F2} seconds";
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Fill failed: {ex.Message}";               
+                StatusMessage = $"Fill failed: {ex.Message}";
             }
             finally
             {
                 IsProcessing = false;
+                _uiHeartbeatTimer.Stop();
                 LoadingOverlayService.Hide();
             }
         }
