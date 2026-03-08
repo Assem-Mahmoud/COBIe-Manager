@@ -1,12 +1,13 @@
-using Autodesk.Revit.DB;
-using Autodesk.Revit.UI;
 using Aps.Core.Interfaces;
 using Aps.Core.Logging;
 using Aps.Core.Services;
+using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 using COBIeManager.Shared.DependencyInjection;
-using COBIeManager.Shared.Logging;
 using COBIeManager.Shared.Interfaces;
+using COBIeManager.Shared.Logging;
 using COBIeManager.Shared.Services;
+using COBIeManager.Shared.Utils;
 using System;
 using System.Reflection;
 using System.Windows.Media.Imaging;
@@ -72,21 +73,25 @@ namespace COBIeManager
                 // COBie Parameters button
                 PushButtonData cobieParamsButtonData = new PushButtonData(
                     "CobieParametersBtn",
-                    "COBie Parameters",
+                    "APS Parameters",
                     assemblyPath,
                     "COBIeManager.Features.CobieParameters.Commands.CobieParametersCommand");
 
                 PushButton cobieParamsButton = panel.AddItem(cobieParamsButtonData) as PushButton;
+                cobieParamsButton.Image = ImageUtils.LoadImage(Assembly.GetExecutingAssembly(), "importIcon32.png");
+                cobieParamsButton.LargeImage = ImageUtils.LoadImage(Assembly.GetExecutingAssembly(), "importIcon32.png");               
                 cobieParamsButton.ToolTip = "Manage COBie parameters from Autodesk Platform Services";
 
                 // Auto-Fill Parameters button
                 PushButtonData fillParamsButtonData = new PushButtonData(
                     "ParameterFillBtn",
-                    "Auto-Fill Parameters",
+                    "Fill Parameters",
                     assemblyPath,
                     "COBIeManager.Features.ParameterFiller.Commands.ParameterFillCommand");
 
                 PushButton fillParamsButton = panel.AddItem(fillParamsButtonData) as PushButton;
+                fillParamsButton.Image = ImageUtils.LoadImage(Assembly.GetExecutingAssembly(), "fillingIcon16.png");
+                fillParamsButton.LargeImage = ImageUtils.LoadImage(Assembly.GetExecutingAssembly(), "fillingIcon32.png");
                 fillParamsButton.ToolTip = "Auto-fill level and room parameters on model elements";
 
                 return Result.Succeeded;
@@ -267,6 +272,13 @@ namespace COBIeManager
                     var spLogger = sp.GetService<ILogger>();
                     return new ProcessingLogger(spLogger);
                 });
+
+                // Parameter selection storage and file dialog services
+                logger.Info("Registering IParameterSelectionStorage singleton...");
+                services.RegisterSingleton<IParameterSelectionStorage>(new ParameterSelectionStorage());
+
+                logger.Info("Registering IFileDialogService singleton...");
+                services.RegisterSingleton<IFileDialogService>(new FileDialogService());
 
                 logger.Info("Building service provider...");
                 var serviceProvider = services.BuildServiceProvider();

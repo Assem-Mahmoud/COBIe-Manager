@@ -18,6 +18,7 @@ using COBIeManager.Shared.Services;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 
 namespace COBIeManager.Features.CobieParameters.ViewModels;
 
@@ -35,7 +36,12 @@ public partial class CobieParametersViewModel : ObservableObject
     private readonly ApsParametersService _parametersService;
     private readonly ITokenStorage _tokenStorage;
     private readonly IApsLogger? _logger;
+    private readonly IParameterSelectionStorage _selectionStorage;
+    private readonly IFileDialogService _fileDialogService;
     private UIDocument _uiDoc;
+
+    // Maximum number of recent parameters to track
+    private const int MaxRecentParameters = 30;
 
     [ObservableProperty]
     private ApsCollection? _selectedCollection;
@@ -48,6 +54,13 @@ public partial class CobieParametersViewModel : ObservableObject
 
     // Cache all parameters by collection ID for local filtering
     private readonly Dictionary<string, List<SelectableParameter>> _allParametersByCollection = new();
+
+    // Track valid label IDs (labels that are actually used by parameters)
+    // This filters out "fake" labels from the API that aren't used by any parameters
+    private readonly HashSet<string> _validLabelIds = new();
+
+    // Track valid label IDs per collection for collection-specific filtering
+    private readonly Dictionary<string, HashSet<string>> _validLabelIdsByCollection = new();
 
     // Special "All" collection that combines all parameters
     private ApsCollection? _allCollection;
@@ -72,16 +85,26 @@ public partial class CobieParametersViewModel : ObservableObject
     [ObservableProperty]
     private bool _variesAcrossGroups = false;
 
+    // Recently used parameters
+    [ObservableProperty]
+    private ObservableCollection<ParameterUsageEntry> _recentParameters = new();
+
+    [ObservableProperty]
+    private string _lastSnapshotPath = string.Empty;
+
     // Computed properties for UI binding
     public int SelectedCount => _selectedParameterIds.Count;
     public int TotalCount => Parameters.Count;
     public int FilteredCount => FilteredParameters.Count;
+    public int FilteredLabelCount => FilteredLabels.Count;
     public bool HasNoParameters => Parameters.Count == 0;
     public bool HasNoParametersAndNotLoading => Parameters.Count == 0 && !IsLoading;
     public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
     public bool CanAddToProject => IsAuthenticated && SelectedCount > 0;
     public bool IsSearching => !string.IsNullOrWhiteSpace(SearchText);
     public bool HasNoSearchResults => IsSearching && FilteredCount == 0 && !IsLoading;
+    public bool HasNoLabels => FilteredLabels.Count == 0 && !IsLoading;
+    public bool HasRecentParameters => RecentParameters.Count > 0;
 
     public ObservableCollection<SelectableParameter> Parameters { get; }
     public ObservableCollection<SelectableParameter> SelectedParameters { get; }
@@ -109,6 +132,21 @@ public partial class CobieParametersViewModel : ObservableObject
         {
             _logger = null;
         }
+
+        // Get selection storage and file dialog services
+        try
+        {
+            _selectionStorage = ServiceLocator.GetService<IParameterSelectionStorage>();
+            _fileDialogService = ServiceLocator.GetService<IFileDialogService>();
+        }
+        catch
+        {
+            _selectionStorage = null;
+            _fileDialogService = null;
+        }
+
+        // Load recent parameters
+        LoadRecentParameters();
 
         Parameters = new ObservableCollection<SelectableParameter>();
         SelectedParameters = new ObservableCollection<SelectableParameter>();
@@ -231,27 +269,9 @@ public partial class CobieParametersViewModel : ObservableObject
     /// </summary>
     private void FilterLabels()
     {
-        FilteredLabels.Clear();
-
-        if (string.IsNullOrWhiteSpace(LabelSearchText))
-        {
-            // No search - show all labels
-            foreach (var label in Labels)
-            {
-                FilteredLabels.Add(label);
-            }
-        }
-        else
-        {
-            var searchText = LabelSearchText.ToLowerInvariant();
-            foreach (var label in Labels)
-            {
-                if (label.Name.ToLowerInvariant().Contains(searchText))
-                {
-                    FilteredLabels.Add(label);
-                }
-            }
-        }
+        // Delegate to UpdateFilteredLabelsForCollection which handles both
+        // collection-based filtering and text search
+        UpdateFilteredLabelsForCollection();
     }
 
     /// <summary>
@@ -464,6 +484,8 @@ public partial class CobieParametersViewModel : ObservableObject
 
             // Clear existing cache
             _allParametersByCollection.Clear();
+            _validLabelIds.Clear();
+            _validLabelIdsByCollection.Clear();
             Parameters.Clear();
             FilteredParameters.Clear();
 
@@ -502,6 +524,18 @@ public partial class CobieParametersViewModel : ObservableObject
 
                     _allParametersByCollection[result.Collection.Id] = parameters;
                     _logger?.Info($"[ViewModel] Cached {parameters.Count} parameters from collection '{result.Collection.Name}'");
+
+                    // Build valid label set for this collection
+                    var collectionLabelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var param in parameters)
+                    {
+                        foreach (var label in param.Labels)
+                        {
+                            collectionLabelIds.Add(label);
+                            _validLabelIds.Add(label);
+                        }
+                    }
+                    _validLabelIdsByCollection[result.Collection.Id] = collectionLabelIds;
                 }
                 else
                 {
@@ -511,7 +545,8 @@ public partial class CobieParametersViewModel : ObservableObject
             }
 
             var totalParams = _allParametersByCollection.Values.Sum(list => list.Count);
-            StatusMessage = $"Refreshed {totalParams} parameters from {Collections.Count} collections.";
+            var totalValidLabels = _validLabelIds.Count;
+            StatusMessage = $"Refreshed {totalParams} parameters from {Collections.Count} collections. Found {totalValidLabels} valid labels.";
             _logger?.Info($"[ViewModel] Refreshed total of {totalParams} parameters from all collections");
 
             // Re-display parameters for the currently selected collection
@@ -627,7 +662,70 @@ public partial class CobieParametersViewModel : ObservableObject
             StatusMessage = $"Collection '{value.Name}' selected.";
             // Display parameters from cache (local filtering, no network call)
             DisplayParametersForCollection();
+            // Update filtered labels for the selected collection
+            UpdateFilteredLabelsForCollection();
         }
+    }
+
+    /// <summary>
+    /// Updates the FilteredLabels collection to show only valid labels for the selected collection.
+    /// This filters out "fake" labels that aren't used by any parameters.
+    /// </summary>
+    private void UpdateFilteredLabelsForCollection()
+    {
+        // Determine which label set to use based on selected collection
+        HashSet<string> validLabels;
+
+        if (SelectedCollection == null)
+        {
+            // No collection selected, show no labels
+            validLabels = new HashSet<string>();
+        }
+        else if (_allCollection != null && SelectedCollection.Id == _allCollection.Id)
+        {
+            // "All" collection selected - show all valid labels across all collections
+            validLabels = _validLabelIds;
+            _logger?.Info($"[ViewModel] Showing all valid labels ({validLabels.Count} total)");
+        }
+        else if (_validLabelIdsByCollection.TryGetValue(SelectedCollection.Id, out var collectionLabels))
+        {
+            // Specific collection selected - show only labels used by that collection's parameters
+            validLabels = collectionLabels;
+            _logger?.Info($"[ViewModel] Showing {validLabels.Count} labels for collection '{SelectedCollection.Name}'");
+        }
+        else
+        {
+            // Collection not found or has no parameters
+            validLabels = new HashSet<string>();
+        }
+
+        // Apply the filter - clear and repopulate FilteredLabels
+        var previousSearchText = LabelSearchText;
+        FilteredLabels.Clear();
+
+        foreach (var label in Labels)
+        {
+            // Only include labels that are in the valid set (by ID or Name)
+            // Parameters reference labels by name, so we check both
+            var isValid = validLabels.Contains(label.Id) || validLabels.Contains(label.Name);
+
+            if (isValid)
+            {
+                // Also apply text search filter if active
+                if (string.IsNullOrWhiteSpace(previousSearchText) ||
+                    label.Name.ToLowerInvariant().Contains(previousSearchText.ToLowerInvariant()))
+                {
+                    FilteredLabels.Add(label);
+                }
+            }
+        }
+
+        _logger?.Info($"[ViewModel] FilteredLabels updated: {FilteredLabels.Count} of {Labels.Count} total labels visible");
+
+        // Notify that the filtered count changed
+        OnPropertyChanged(nameof(FilteredLabels));
+        OnPropertyChanged(nameof(FilteredLabelCount));
+        OnPropertyChanged(nameof(HasNoLabels));
     }
 
     private async Task LoadParametersAsync()
@@ -737,6 +835,8 @@ public partial class CobieParametersViewModel : ObservableObject
 
             // Clear existing cache
             _allParametersByCollection.Clear();
+            _validLabelIds.Clear();
+            _validLabelIdsByCollection.Clear();
 
             // Fetch parameters for all collections in parallel
             var fetchTasks = Collections.Select(async collection =>
@@ -773,6 +873,19 @@ public partial class CobieParametersViewModel : ObservableObject
 
                     _allParametersByCollection[result.Collection.Id] = parameters;
                     _logger?.Info($"[ViewModel] Cached {parameters.Count} parameters from collection '{result.Collection.Name}'");
+
+                    // Build valid label set for this collection
+                    var collectionLabelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var param in parameters)
+                    {
+                        foreach (var label in param.Labels)
+                        {
+                            collectionLabelIds.Add(label);
+                            _validLabelIds.Add(label);
+                        }
+                    }
+                    _validLabelIdsByCollection[result.Collection.Id] = collectionLabelIds;
+                    _logger?.Info($"[ViewModel] Found {collectionLabelIds.Count} unique labels in collection '{result.Collection.Name}'");
                 }
                 else
                 {
@@ -782,8 +895,13 @@ public partial class CobieParametersViewModel : ObservableObject
             }
 
             var totalParams = _allParametersByCollection.Values.Sum(list => list.Count);
-            StatusMessage = $"Loaded {totalParams} parameters from {Collections.Count} collections.";
+            var totalValidLabels = _validLabelIds.Count;
+            StatusMessage = $"Loaded {totalParams} parameters from {Collections.Count} collections. Found {totalValidLabels} valid labels.";
             _logger?.Info($"[ViewModel] Loaded total of {totalParams} parameters from all collections");
+            _logger?.Info($"[ViewModel] Found {totalValidLabels} valid labels (excluding {Labels.Count - totalValidLabels} unused labels)");
+
+            // Update filtered labels to only show valid labels
+            UpdateFilteredLabelsForCollection();
         }
         catch (RefreshTokenExpiredException)
         {
@@ -1050,6 +1168,12 @@ public partial class CobieParametersViewModel : ObservableObject
 
             ShowResults(creationResult, bindingResult, allSkipped, allErrors);
 
+            // Track recently used parameters
+            if (creationResult.CreatedCount > 0)
+            {
+                AddToRecentParameters(definitionsToCreate);
+            }
+
             StatusMessage = $"Created {creationResult.CreatedCount} parameters. " +
                            $"Bound {bindingResult.BoundCount} parameters. " +
                            $"Skipped {allSkipped.Count} parameters. " +
@@ -1172,4 +1296,382 @@ public partial class CobieParametersViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanAddToProject));
     }
+
+    #region Recently Used Parameters
+
+    /// <summary>
+    /// Loads recently used parameters from storage
+    /// </summary>
+    private void LoadRecentParameters()
+    {
+        if (_selectionStorage == null) return;
+
+        try
+        {
+            var data = _selectionStorage.LoadRecentParameters();
+            RecentParameters.Clear();
+            foreach (var entry in data.RecentParameters.Take(MaxRecentParameters))
+            {
+                RecentParameters.Add(entry);
+            }
+            _logger?.Info($"[ViewModel] Loaded {RecentParameters.Count} recent parameters");
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("[ViewModel] Failed to load recent parameters", ex);
+        }
+    }
+
+    /// <summary>
+    /// Saves recently used parameters to storage
+    /// </summary>
+    private void SaveRecentParameters()
+    {
+        if (_selectionStorage == null) return;
+
+        try
+        {
+            var data = new ParameterUsageData
+            {
+                RecentParameters = RecentParameters.ToList()
+            };
+            _selectionStorage.SaveRecentParameters(data);
+        }
+        catch (Exception ex)
+        {
+            _logger?.Error("[ViewModel] Failed to save recent parameters", ex);
+        }
+    }
+
+    /// <summary>
+    /// Adds parameters to the recent list after they are successfully added to the project
+    /// </summary>
+    private void AddToRecentParameters(List<CobieParameterDefinition> addedParameters)
+    {
+        if (_selectionStorage == null) return;
+
+        foreach (var param in addedParameters)
+        {
+            // Find the collection name for this parameter
+            string collectionName = string.Empty;
+            foreach (var kvp in _allParametersByCollection)
+            {
+                var found = kvp.Value.FirstOrDefault(p => p.Id == param.Id);
+                if (found != null)
+                {
+                    collectionName = found.CollectionName;
+                    break;
+                }
+            }
+
+            // Check if this parameter is already in the recent list
+            var existing = RecentParameters.FirstOrDefault(r => r.ParameterId == param.Id);
+            if (existing != null)
+            {
+                // Update existing entry
+                existing.LastUsed = DateTime.UtcNow;
+                existing.UseCount++;
+                // Move to top by removing and re-adding
+                RecentParameters.Remove(existing);
+                RecentParameters.Insert(0, existing);
+            }
+            else
+            {
+                // Add new entry
+                var entry = new ParameterUsageEntry
+                {
+                    ParameterId = param.Id,
+                    ParameterName = param.Name,
+                    CollectionName = collectionName,
+                    LastUsed = DateTime.UtcNow,
+                    UseCount = 1,
+                    DataType = param.DataType.ToString(),
+                    Labels = param.Labels ?? Array.Empty<string>()
+                };
+                RecentParameters.Insert(0, entry);
+
+                // Keep only the most recent parameters
+                while (RecentParameters.Count > MaxRecentParameters)
+                {
+                    RecentParameters.RemoveAt(RecentParameters.Count - 1);
+                }
+            }
+        }
+
+        SaveRecentParameters();
+        OnPropertyChanged(nameof(HasRecentParameters));
+    }
+
+    /// <summary>
+    /// Selects all recently used parameters
+    /// </summary>
+    [RelayCommand]
+    private void SelectRecentParameters()
+    {
+        if (RecentParameters.Count == 0)
+        {
+            StatusMessage = "No recent parameters available.";
+            return;
+        }
+
+        _logger?.Info($"[ViewModel] Loading {RecentParameters.Count} recent parameters");
+
+        // Clear current selections
+        DeselectAll();
+
+        // Build a lookup of all cached parameters (handle duplicates by taking first)
+        var allParameters = new List<SelectableParameter>();
+        foreach (var kvp in _allParametersByCollection)
+        {
+            allParameters.AddRange(kvp.Value);
+        }
+        var parameterLookup = allParameters
+            .GroupBy(p => p.Id)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Find and select all recent parameters
+        int selectedCount = 0;
+        int notFoundCount = 0;
+
+        foreach (var recentEntry in RecentParameters)
+        {
+            if (parameterLookup.TryGetValue(recentEntry.ParameterId, out var param))
+            {
+                param.IsSelected = true;
+                selectedCount++;
+            }
+            else
+            {
+                notFoundCount++;
+            }
+        }
+
+        string message = $"Selected {selectedCount} recent parameters.";
+        if (notFoundCount > 0)
+        {
+            message += $" {notFoundCount} parameters not found in current collections.";
+        }
+        StatusMessage = message;
+
+        _logger?.Info($"[ViewModel] Selected {selectedCount} recent parameters, {notFoundCount} not found");
+    }
+
+    #endregion
+
+    #region Import/Export
+
+    /// <summary>
+    /// Exports the current parameter selections to a file
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportSelectionsAsync()
+    {
+        if (_selectionStorage == null || _fileDialogService == null)
+        {
+            StatusMessage = "Export feature not available.";
+            return;
+        }
+
+        if (SelectedParameters.Count == 0)
+        {
+            StatusMessage = "No parameters selected to export.";
+            return;
+        }
+
+        try
+        {
+            _logger?.Info($"[ViewModel] Exporting {SelectedParameters.Count} selected parameters");
+
+            // Generate default filename with timestamp
+            var defaultFileName = $"COBieParameters_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            var filter = "JSON Files|*.json|All Files|*.*";
+
+            var filePath = _fileDialogService.ShowSaveFileDialog(defaultFileName, filter);
+            if (string.IsNullOrEmpty(filePath))
+            {
+                StatusMessage = "Export canceled.";
+                return;
+            }
+
+            LoadingOverlayService.Show("Exporting Parameters", "Creating snapshot file...");
+
+            // Build the snapshot
+            var snapshot = new ParameterSelectionSnapshot
+            {
+                SnapshotName = "COBie Parameters Selection",
+                ExportedBy = Environment.UserName,
+                VariesAcrossGroups = VariesAcrossGroups,
+                Parameters = SelectedParameters.Select(p => new ExportedParameter
+                {
+                    Id = p.Parameter.Id,
+                    Name = p.Parameter.Name,
+                    Description = p.Parameter.Description,
+                    DataTypeId = p.Parameter.DataTypeId,
+                    DataType = p.Parameter.DataType.ToString(),
+                    InstanceTypeAssociation = p.Parameter.InstanceTypeAssociation.ToString(),
+                    CategoryBindingIds = p.Parameter.CategoryBindingIds ?? Array.Empty<string>(),
+                    CategoryNames = p.Parameter.CategoryNames ?? Array.Empty<string>(),
+                    Labels = p.Parameter.Labels ?? Array.Empty<string>(),
+                    GroupBindingId = p.Parameter.GroupBindingId,
+                    CollectionName = p.CollectionName
+                }).ToList()
+            };
+
+            await Task.Run(() => _selectionStorage.ExportSnapshot(filePath, snapshot));
+
+            LoadingOverlayService.Hide();
+            LastSnapshotPath = filePath;
+            StatusMessage = $"Exported {snapshot.Parameters.Count} parameters to {Path.GetFileName(filePath)}";
+            _logger?.Info($"[ViewModel] Exported {snapshot.Parameters.Count} parameters to {filePath}");
+        }
+        catch (Exception ex)
+        {
+            LoadingOverlayService.Hide();
+            _logger?.Error("[ViewModel] Failed to export selections", ex);
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Imports parameter selections from a file
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportSelectionsAsync()
+    {
+        if (_selectionStorage == null || _fileDialogService == null)
+        {
+            StatusMessage = "Import feature not available.";
+            return;
+        }
+
+        try
+        {
+            _logger?.Info("[ViewModel] Opening import file dialog");
+
+            var filter = "JSON Files|*.json|All Files|*.*";
+            var filePath = _fileDialogService.ShowOpenFileDialog(filter);
+
+            if (string.IsNullOrEmpty(filePath))
+            {
+                StatusMessage = "Import canceled.";
+                return;
+            }
+
+            LoadingOverlayService.Show("Importing Parameters", "Reading snapshot file...");
+
+            await Task.Run(() =>
+            {
+                var snapshot = _selectionStorage.ImportSnapshot(filePath);
+                LastSnapshotPath = filePath;
+
+                LoadingOverlayService.Hide();
+                ProcessImportedSnapshot(snapshot);
+            });
+        }
+        catch (Exception ex)
+        {
+            LoadingOverlayService.Hide();
+            _logger?.Error("[ViewModel] Failed to import selections", ex);
+            StatusMessage = $"Import failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Processes an imported snapshot and selects matching parameters
+    /// </summary>
+    private void ProcessImportedSnapshot(ParameterSelectionSnapshot snapshot)
+    {
+        _logger?.Info($"[ViewModel] Processing imported snapshot with {snapshot.Parameters.Count} parameters");
+
+        int matchedCount = 0;
+        int unmatchedCount = 0;
+        var unmatchedNames = new List<string>();
+
+        // Clear current selections
+        DeselectAll();
+
+        // Build a lookup of all cached parameters by ID (handle duplicates by taking first)
+        var allParameters = new List<SelectableParameter>();
+        foreach (var kvp in _allParametersByCollection)
+        {
+            allParameters.AddRange(kvp.Value);
+        }
+        var parameterLookup = allParameters
+            .GroupBy(p => p.Id)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Also build a lookup by name (for fallback matching) - handle duplicates
+        var parametersByName = allParameters
+            .GroupBy(p => p.Name)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Try to match and select each imported parameter
+        foreach (var importedParam in snapshot.Parameters)
+        {
+            SelectableParameter? targetParam = null;
+
+            // First try to match by ID
+            if (parameterLookup.TryGetValue(importedParam.Id, out var byId))
+            {
+                targetParam = byId;
+            }
+            // Fallback to matching by name
+            else if (parametersByName.TryGetValue(importedParam.Name, out var byName))
+            {
+                targetParam = byName;
+            }
+
+            if (targetParam != null)
+            {
+                // Switch to the parameter's collection if needed
+                var targetCollection = Collections.FirstOrDefault(c => c.Name == importedParam.CollectionName);
+                if (targetCollection != null)
+                {
+                    // For now, just mark as selected - the parameter will be visible when switching collections
+                    if (!_selectedParameterIds.Contains(targetParam.Id))
+                    {
+                        _selectedParameterIds.Add(targetParam.Id);
+                    }
+                    if (!SelectedParameters.Contains(targetParam))
+                    {
+                        SelectedParameters.Add(targetParam);
+                    }
+                    targetParam.IsSelected = true;
+                    matchedCount++;
+                }
+                else
+                {
+                    unmatchedCount++;
+                    unmatchedNames.Add(importedParam.Name);
+                }
+            }
+            else
+            {
+                unmatchedCount++;
+                unmatchedNames.Add(importedParam.Name);
+            }
+        }
+
+        // Apply the VariesAcrossGroups setting from the snapshot
+        VariesAcrossGroups = snapshot.VariesAcrossGroups;
+
+        // Update UI
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(CanAddToProject));
+
+        // Show result message
+        if (matchedCount > 0)
+        {
+            StatusMessage = $"Imported {matchedCount} parameters selected." +
+                            (unmatchedCount > 0 ? $" {unmatchedCount} parameters not found in current collections." : "");
+        }
+        else
+        {
+            StatusMessage = "No matching parameters found in current collections.";
+        }
+
+        _logger?.Info($"[ViewModel] Import complete: {matchedCount} matched, {unmatchedCount} unmatched");
+    }
+
+    #endregion
 }

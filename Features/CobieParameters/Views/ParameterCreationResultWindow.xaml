@@ -122,25 +122,27 @@
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock
                                         HorizontalAlignment="Center"
-                                        Style="{StaticResource StatValue}"
-                                        Text="{Binding CreatedCount}" />
+                                        FontSize="18"
+                                        FontWeight="Bold"
+                                        Foreground="{StaticResource PrimaryTextBrush}"
+                                        Text="{Binding TotalCount}" />
                                     <TextBlock
                                         HorizontalAlignment="Center"
-                                        Style="{StaticResource StatLabel}"
-                                        Text="Created" />
+                                        FontSize="11"
+                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                        Text="Total" />
                                 </StackPanel>
                             </Border>
                             <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
                                 <StackPanel HorizontalAlignment="Center">
                                     <TextBlock
                                         HorizontalAlignment="Center"
-                                        Foreground="{StaticResource InfoBrush}"
                                         Style="{StaticResource StatValue}"
-                                        Text="{Binding BoundCount}" />
+                                        Text="{Binding CreatedCount}" />
                                     <TextBlock
                                         HorizontalAlignment="Center"
                                         Style="{StaticResource StatLabel}"
-                                        Text="Bound" />
+                                        Text="Created" />
                                 </StackPanel>
                             </Border>
                             <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
@@ -154,6 +156,19 @@
                                         HorizontalAlignment="Center"
                                         Style="{StaticResource StatLabel}"
                                         Text="Skipped" />
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="0,0,8,0" Style="{StaticResource StatCard}">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Foreground="{StaticResource ErrorBrush}"
+                                        Style="{StaticResource StatValue}"
+                                        Text="{Binding ErrorCount}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        Style="{StaticResource StatLabel}"
+                                        Text="Errors" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="clr-namespace:COBIeManager.Shared.Controls"
     xmlns:converters="clr-namespace:COBIeManager.Shared.Converters"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:shared="clr-namespace:COBIeManager.Shared.Services"
     xmlns:viewModels="clr-namespace:COBIeManager.Features.CobieParameters.ViewModels"
@@ -156,6 +157,67 @@
                                 Margin="0,0,0,0"
                                 Style="{StaticResource SectionSubheader}"
                                 Text="Connect to APS and add COBie parameters to your Revit project" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+
+                            <!--  Recent Parameters Button  -->
+                            <Button
+                                    Command="{Binding SelectRecentParametersCommand}"
+                                    Style="{StaticResource ToolButton}"
+                                    ToolTip="Select recently used parameters"
+                                    Visibility="{Binding HasRecentParameters, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                            Width="18"
+                                            Height="18"
+                                            Kind="History" />
+                                    <TextBlock Margin="8,0,0,0" Text="Recent" />
+                                </StackPanel>
+                            </Button>
+                            <!--  Separator  -->
+                            <Border
+                                    Width="1"
+                                    Margin="8,0"
+                                    Background="#E0E0E0"
+                                    Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+                            <!--  Export Button  -->
+                            <Button
+                                    Command="{Binding ExportSelectionsCommand}"
+                                    Style="{StaticResource ToolButton}"
+                                    ToolTip="Export parameter selections to file"
+                                    Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                            Width="18"
+                                            Height="18"
+                                            Kind="Download" />
+                                    <TextBlock Margin="8,0,0,0" Text="Export" />
+                                </StackPanel>
+                            </Button>
+
+                            <!--  Import Button  -->
+                            <Button
+                                    Command="{Binding ImportSelectionsCommand}"
+                                    Style="{StaticResource ToolButton}"
+                                    ToolTip="Import parameter selections from file"
+                                    Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon
+                                            Width="18"
+                                            Height="18"
+                                            Kind="Upload" />
+                                    <TextBlock Margin="8,0,0,0" Text="Import" />
+                                </StackPanel>
+                            </Button>
+
+                            <!--  Separator  -->
+                            <Border
+                                    Width="1"
+                                    Margin="8,0"
+                                    Background="#E0E0E0"
+                                    Visibility="{Binding HasRecentParameters, Converter={StaticResource BooleanToVisibilityConverter}}" />
                         </StackPanel>
 
                         <!--  Auth Status Badge  -->
@@ -354,24 +416,41 @@
                                     Height="30"
                                     VerticalAlignment="Center"
                                     Kind="filter" />
-                                <TextBlock
-                                    Margin="8,8,8,12"
-                                    VerticalAlignment="Center"
-                                    DockPanel.Dock="Left"
-                                    FontSize="13"
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource PrimaryTextBrush}"
-                                    Text="Labels">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Labels.Count}" Value="0">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                    <TextBlock
+                                        Margin="8,4,8,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource PrimaryTextBrush}"
+                                        Text="Labels">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Labels.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock
+                                        Margin="8,0,8,4"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource SecondaryTextBrush}"
+                                        Text="{Binding FilteredLabelCount, StringFormat={}Showing {0} relevant labels}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FilteredLabelCount}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
                                 <!--  Clear Labels Button  -->
                                 <Button
                                     Padding="10,6"
@@ -426,7 +505,8 @@
                                 Grid.Row="2"
                                 VerticalScrollBarVisibility="Auto"
                                 Visibility="{Binding IsAuthenticated, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <ItemsControl ItemsSource="{Binding FilteredLabels}">
+                                <Grid>
+                                    <ItemsControl ItemsSource="{Binding FilteredLabels}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel Orientation="Horizontal" />
@@ -501,6 +581,34 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+
+                                    <!-- Empty State - No Labels Available -->
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding HasNoLabels, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <materialDesign:PackIcon
+                                            Width="40"
+                                            Height="40"
+                                            Margin="0,0,0,8"
+                                            HorizontalAlignment="Center"
+                                            Foreground="#BDBDBD"
+                                            Kind="TagOff" />
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="12"
+                                            Foreground="{StaticResource SecondaryTextBrush}"
+                                            Text="No labels available"
+                                            TextAlignment="Center" />
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            FontSize="11"
+                                            FontStyle="Italic"
+                                            Foreground="{StaticResource SecondaryTextBrush}"
+                                            Text="Labels will appear when parameters are loaded"
+                                            TextAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
                             </ScrollViewer>
                         </Grid>
                     </materialDesign:Card>
@@ -555,6 +663,8 @@
                                         <TextBlock Margin="8,0,0,0" Text="Refresh" />
                                     </StackPanel>
                                 </Button>
+
+
 
                                 <!--  Search Box  -->
                                 <Border

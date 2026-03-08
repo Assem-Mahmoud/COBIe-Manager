@@ -23,9 +23,21 @@ public partial class ParameterCreationResultViewModel : ObservableObject
     private bool _hasWarnings;
 
     // Count properties for UI binding
+    private int _totalCount;
     private int _createdCount;
     private int _boundCount;
     private int _skippedCount;
+    private int _errorCount;
+
+    public int TotalCount
+    {
+        get => _totalCount;
+        set
+        {
+            _totalCount = value;
+            OnPropertyChanged();
+        }
+    }
 
     public int CreatedCount
     {
@@ -57,6 +69,16 @@ public partial class ParameterCreationResultViewModel : ObservableObject
         }
     }
 
+    public int ErrorCount
+    {
+        get => _errorCount;
+        set
+        {
+            _errorCount = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool HasNoErrors => Errors.Count == 0;
 
     public ObservableCollection<ParameterResultItem> CreatedParameters { get; }
@@ -84,9 +106,13 @@ public partial class ParameterCreationResultViewModel : ObservableObject
         System.Collections.Generic.IEnumerable<string>? errors = null,
         System.Collections.Generic.IEnumerable<COBIeManager.Shared.Interfaces.BoundParameterInfo>? bound = null)
     {
+        // Calculate total count
+        TotalCount = createdCount + skippedCount;
+
         // Set count properties
         CreatedCount = createdCount;
         SkippedCount = skippedCount;
+        ErrorCount = errorCount;
 
         // Track bound count separately
         var boundCount = 0;
